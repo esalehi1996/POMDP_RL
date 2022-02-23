@@ -21,16 +21,18 @@ class SAC(object):
         self.state_size = num_inputs
         self.automatic_entropy_tuning = args['automatic_entropy_tuning']
         self.rl_alg = args['rl_alg']
+        print(self.rl_alg)
         self.model_alg = args['model_alg']
         # self.automatic_entropy_tuning = args.automatic_entropy_tuning
 
         self.device = torch.device("cuda" if args['cuda'] else "cpu")
-
         self.policy = policy_net_lowdim(action_space.n, self.AIS_state_size).to(self.device)
+
         self.critic = QNetwork_discrete(self.AIS_state_size, action_space.n, args['hidden_size']).to(device=self.device)
         self.critic_target = QNetwork_discrete(self.AIS_state_size, action_space.n, args['hidden_size']).to(self.device)
 
         self.policy_cpu = policy_net_lowdim(action_space.n, self.AIS_state_size)
+        self.q_cpu = QNetwork_discrete(self.AIS_state_size, action_space.n, args['hidden_size'])
 
         # if self.alg == 'SAC+AIS':
         self.rho = rho_net_lowdim(num_inputs, action_space.n, self.AIS_state_size).to(self.device)
@@ -57,8 +59,16 @@ class SAC(object):
         # self.AIS_q_optim = Adam(self.rho_q.parameters() , lr=args.rnn_lr)
         # self.AIS_p_optim = Adam(self.rho_policy.parameters() , lr=args.rnn_lr)
         hard_update(self.critic_target, self.critic)
+        hard_update(self.q_cpu, self.critic)
         hard_update(self.rho_cpu, self.rho)
         hard_update(self.policy_cpu, self.policy)
+        if self.rl_alg == 'QL':
+            self.eps_greedy_parameters = {
+                "EPS_START" : 0.9 ,
+                "EPS_END" : 0.05 ,
+                "EPS_DECAY" : 50000
+            }
+            self.env_steps = 0
         if self.automatic_entropy_tuning is True:
             # self.target_entropy = -torch.prod(torch.Tensor(action_space.n).to(self.device)).item()
             # print(torch.Tensor(action_space.n))
@@ -100,14 +110,37 @@ class SAC(object):
             ais_z = ais_z[ais_z.shape[0] - 1]
             # print('ais',ais_z)
             # print('hidden',hidden_p)
-            action, pi, _ = self.policy_cpu.sample(ais_z.detach())
+            if self.rl_alg == 'SAC':
+                action, pi, _ = self.policy_cpu.sample(ais_z.detach())
+                # print(action)
+                # raise "Error"
+            if self.rl_alg == 'QL':
+                qf1, qf2 = self.q_cpu(ais_z.detach())
+                # print(qf1 , qf2)
+                min_q = (torch.min(qf1, qf2))
+                # print(min_q.shape,min_q)
+                max_ac = min_q.max(1)[1]
+                # print(min_q.max(1))
+                # raise "Error"
+
+
             # print('action',action)
             # print('pi',pi)
 
-        if evaluate:
-            return torch.argmax(pi[0]).detach().numpy(), hidden_p
-        else:
+        if self.rl_alg == 'SAC':
             return action.detach().cpu().numpy()[0][0], hidden_p
+        if self.rl_alg == 'QL':
+            import math
+            import random
+            eps_threshold = self.eps_greedy_parameters['EPS_END'] + (self.eps_greedy_parameters['EPS_START'] - self.eps_greedy_parameters['EPS_END']) * \
+                            math.exp(-1. * self.env_steps / self.eps_greedy_parameters['EPS_DECAY'])
+            self.env_steps += 1
+            sample = random.random()
+            if sample > eps_threshold:
+                return max_ac.detach().cpu().numpy()[0] , hidden_p
+            else:
+                # print('gggggggggggg',torch.tensor([[random.randrange(self.act_dim)]],dtype=torch.long).cpu().numpy())
+                return torch.tensor([[random.randrange(self.act_dim)]],dtype=torch.long).cpu().numpy()[0][0] , hidden_p
 
     def update_model(self, memory, batch_size, updates):
         # print('start training')
@@ -257,13 +290,17 @@ class SAC(object):
 
             with torch.no_grad():
 
-                _, next_state_pi, next_state_log_pi = self.policy.sample(h_next_input.squeeze())
-
                 # print('next_state_pi', next_state_pi.shape,next_state_pi)
 
                 qf1_next_target, qf2_next_target = self.critic_target(h_next_input.squeeze())
 
-                min_qf_next_target = (next_state_pi * (
+                if self.rl_alg == 'QL':
+                    min_qf_next_target =  (torch.min(qf1_next_target, qf2_next_target)).max(1)[0].unsqueeze(1)
+                    # print('min_qf',min_qf_next_target.shape, min_qf_next_target)
+
+                if self.rl_alg == 'SAC':
+                    _, next_state_pi, next_state_log_pi = self.policy.sample(h_next_input.squeeze())
+                    min_qf_next_target = (next_state_pi * (
                             torch.min(qf1_next_target, qf2_next_target) - self.alpha * next_state_log_pi)).sum(dim=1,
                                                                                                                keepdim=True)
 
@@ -277,34 +314,37 @@ class SAC(object):
                 next_q_value = q_r + self.gamma * batch_mask.unsqueeze(1).to(self.device) * min_qf_next_target
             # print('next_q', next_q_value.shape , next_q_value)
 
-            qf1_loss = F.mse_loss(qf1,
+            qf1_loss = F.smooth_l1_loss(qf1,
                                   next_q_value)  # JQ = 𝔼(st,at)~D[0.5(Q1(st,at) - r(st,at) - γ(𝔼st+1~p[V(st+1)]))^2]
-            qf2_loss = F.mse_loss(qf2,
+            qf2_loss = F.smooth_l1_loss(qf2,
                                   next_q_value)  # JQ = 𝔼(st,at)~D[0.5(Q1(st,at) - r(st,at) - γ(𝔼st+1~p[V(st+1)]))^2]
             # qf_loss = qf1_loss + qf2_loss
             qf_loss = qf1_loss + qf2_loss
             # print(qf_loss)
             qf_losses[i_updates] = qf_loss
+            # raise 'Error'
 
             # print('qf_lossssssss', qf_loss.shape, qf_loss)
 
-            _, pi, log_pi = self.policy.sample(h_input.detach().squeeze())
-            # print('pi', pi.shape , pi)
-            with torch.no_grad():
-                qf1_pi, qf2_pi = self.critic(h_input.squeeze())
-                # print('qf1 and qf2 pi' , qf1_pi , qf2_pi)
-                min_qf_pi = torch.min(qf1_pi, qf2_pi)
-                # print('min_qf_pi',min_qf_pi)
-            entropies = -torch.sum(pi * log_pi, dim=1, keepdim=True)
-            # print('entropy before sum',pi * log_pi)
-            # print('entropies',entropies)
-            q = torch.sum(min_qf_pi * pi, dim=1, keepdim=True)
-            # print('expected q before sum', min_qf_pi * pi)
-            # print('q policy',q)
-            policy_loss = (-(self.alpha * entropies) - q).mean()
+            if self.rl_alg == 'SAC':
 
-            # print('policy',policy_loss.shape,policy_loss)
-            policy_losses[i_updates] = policy_loss
+                _, pi, log_pi = self.policy.sample(h_input.detach().squeeze())
+                # print('pi', pi.shape , pi)
+                with torch.no_grad():
+                    qf1_pi, qf2_pi = self.critic(h_input.squeeze())
+                    # print('qf1 and qf2 pi' , qf1_pi , qf2_pi)
+                    min_qf_pi = torch.min(qf1_pi, qf2_pi)
+                    # print('min_qf_pi',min_qf_pi)
+                entropies = -torch.sum(pi * log_pi, dim=1, keepdim=True)
+                # print('entropy before sum',pi * log_pi)
+                # print('entropies',entropies)
+                q = torch.sum(min_qf_pi * pi, dim=1, keepdim=True)
+                # print('expected q before sum', min_qf_pi * pi)
+                # print('q policy',q)
+                policy_loss = (-(self.alpha * entropies) - q).mean()
+
+                # print('policy',policy_loss.shape,policy_loss)
+                policy_losses[i_updates] = policy_loss
 
             if self.automatic_entropy_tuning:
                 alpha_loss = -(self.log_alpha * (log_pi + self.target_entropy).detach()).mean()
@@ -322,9 +362,10 @@ class SAC(object):
             self.critic_optim.step()
             if self.model_alg == 'None':
                 self.AIS_optimizer.step()
-            self.policy_optim.zero_grad()
-            policy_loss.backward()
-            self.policy_optim.step()
+            if self.rl_alg == 'SAC':
+                self.policy_optim.zero_grad()
+                policy_loss.backward()
+                self.policy_optim.step()
 
         if updates % self.target_update_interval == 0:
             # hard_update(self.critic_target, self.critic)
@@ -334,9 +375,14 @@ class SAC(object):
 
         # assert False
         qf_losses = qf_losses.mean()
-        policy_losses = policy_losses.mean()
+        if self.rl_alg == 'SAC':
+            policy_losses = policy_losses.mean()
+        if self.rl_alg == 'QL':
+            policy_losses = torch.zeros(1)
         hard_update(self.policy_cpu, self.policy)
+        hard_update(self.q_cpu, self.critic)
         if self.model_alg == 'None':
             hard_update(self.rho_cpu, self.rho)
+
 
         return qf_losses.item(), policy_losses.item()
