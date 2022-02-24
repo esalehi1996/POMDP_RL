@@ -3,11 +3,13 @@ from env.Tiger import TigerEnv
 from env.RockSampling import RockSamplingEnv
 from SAC import SAC
 from Replaybuffer import Rec_ReplayMemory
+from torch.utils.tensorboard import SummaryWriter
 from args import Args
 import pickle
 # env = gym.make("Battleship-v0")
 # env = TigerEnv()
 def run_exp(args):
+    writer = SummaryWriter(args['logdir'])
     if args['env_name'] == 'Tiger':
         env = TigerEnv()
         if args['max_env_steps'] == -1:
@@ -21,6 +23,10 @@ def run_exp(args):
     updates = 1
     print(env.action_space, env.observation_space)
     sac = SAC(env.observation_space.n, env.action_space, args)
+
+    if args['load_from_path'] != 'None':
+        print('---------------  Loading Model from path:' , args['load_from_path'] , '-----------------')
+        sac.load_model(args['load_from_path'])
 
     memory = Rec_ReplayMemory(args['replay_size'], env.observation_space.n, env.action_space.n, 1000, args['seed'])
 
@@ -141,6 +147,9 @@ def run_exp(args):
         #     avg_model_loss = 0
         #     updates = 0
 
+        if args['logging_freq'] != -1 and i_episode % args['logging_freq'] == 1 :
+            sac.save_model(args['logdir'])
+
         if k_steps >= 2000:
             k_steps = 0
             avg_reward = 0.
@@ -197,6 +206,12 @@ def run_exp(args):
                                                                                                               avgql, avgpl))
 
 
+            writer.add_scalar('Evaluation reward', avg_reward , total_numsteps)
+            writer.add_scalar('Average Steps for each episode', avg_episode_steps , total_numsteps)
+            writer.add_scalar('Loss/Policy', avgpl, total_numsteps)
+            writer.add_scalar('Loss/Value', avgql, total_numsteps)
+            if args['model_alg'] == 'AIS':
+                writer.add_scalar('Loss/Model', avgml, total_numsteps)
             k_episode = 0
             avg_reward = 0
             avg_episode_steps = 0
@@ -206,5 +221,8 @@ def run_exp(args):
             avg_model_loss = 0
             updates = 0
             print("----------------------------------------")
+            writer.flush()
+
 
     env.close()
+    writer.close()

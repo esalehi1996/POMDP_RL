@@ -2,7 +2,7 @@ import os
 import time
 
 import argparse
-
+import json
 from run import *
 
 
@@ -37,6 +37,8 @@ def main():
     parser.add_argument('--rl_alg', type=str, default='QL')
     parser.add_argument('--model_alg', type=str, default='None')
     parser.add_argument('--max_env_steps', type=int, default=-1)
+    parser.add_argument('--logging_freq' , type=int , default=-1)
+    parser.add_argument('--load_from_path', type=str, default='None')
     args = parser.parse_args()
 
     # convert to dictionary
@@ -76,6 +78,10 @@ def main():
     print("\n\n\nLOGGING TO: ", logdir, "\n\n\n")
 
     print(params)
+    config_path = os.path.join(logdir,'config.json')
+    print(config_path)
+    with open(config_path, 'w') as fp:
+        json.dump(params, fp , indent=4)
     #
     # ###################
     # ### RUN TRAINING

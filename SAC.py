@@ -39,9 +39,9 @@ class SAC(object):
         self.critic_optim = Adam(self.critic.parameters(), lr=args['rl_lr'])
         self.policy_optim = Adam(self.policy.parameters(), lr=args['rl_lr'])
         self.rho_cpu = rho_net_lowdim(num_inputs, action_space.n, self.AIS_state_size)
+        self.psi = psi_net_lowdim(num_inputs, action_space.n, self.AIS_state_size).to(self.device)
 
         if self.model_alg == 'AIS':
-            self.psi = psi_net_lowdim(num_inputs, action_space.n, self.AIS_state_size).to(self.device)
             self.AIS_optimizer = Adam(list(self.rho.parameters()) + list(self.psi.parameters()), lr=args['AIS_lr'])
         if self.model_alg == 'None':
             self.AIS_optimizer = Adam(self.rho.parameters(), lr=args['AIS_lr'])
@@ -386,3 +386,28 @@ class SAC(object):
 
 
         return qf_losses.item(), policy_losses.item()
+
+    def save_model(self , dir):
+        import os
+        path = os.path.join(dir, 'models.pt')
+
+        torch.save({
+            'AIS_rho' : self.rho.state_dict(),
+            'AIS_psi' : self.psi.state_dict(),
+            'Q_target' : self.critic_target.state_dict(),
+            'Q': self.critic.state_dict(),
+            'policy': self.policy.state_dict() ,
+        } , path)
+
+    def load_model(self , path):
+
+        checkpoint = torch.load(path)
+
+        self.policy.load_state_dict(checkpoint['policy'])
+        self.policy_cpu.load_state_dict(checkpoint['policy'])
+        self.critic.load_state_dict(checkpoint['Q'])
+        self.critic_target.load_state_dict(checkpoint['Q_target'])
+        self.q_cpu.load_state_dict(checkpoint['Q'])
+        self.rho.load_state_dict(checkpoint['AIS_rho'])
+        self.rho_cpu.load_state_dict(checkpoint['AIS_rho'])
+        self.psi.load_state_dict(checkpoint['AIS_psi'])
