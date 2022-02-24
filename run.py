@@ -1,6 +1,9 @@
 import itertools
 from env.Tiger import TigerEnv
 from env.RockSampling import RockSamplingEnv
+from env.DroneSurveillance import DroneSurveillanceEnv
+from env.cheesemaze import CheeseMazeEnv
+from env.voicemail import VoicemailEnv
 from SAC import SAC
 from Replaybuffer import Rec_ReplayMemory
 from torch.utils.tensorboard import SummaryWriter
@@ -14,10 +17,16 @@ def run_exp(args):
         env = TigerEnv()
         if args['max_env_steps'] == -1:
             max_env_steps = 100
-    if args['env_name'] == 'RockSampling':
+    elif args['env_name'] == 'RockSampling':
         env = RockSamplingEnv()
         if args['max_env_steps'] == -1:
             max_env_steps = 200
+    elif args['env_name'] == 'Cheesemaze':
+        max_env_steps = 100
+    elif args['env_name'] == 'Voicemail':
+        max_env_steps = 100
+    elif args['env_name'] == 'DroneSurveillance':
+        max_env_steps = 100
     total_numsteps = 0
     k_steps = 0
     updates = 1
@@ -73,11 +82,11 @@ def run_exp(args):
             ls_actions.append(action)
             ls_rewards.append(reward)
             if args['model_alg'] == 'AIS':
-                if len(memory) > args['batch_size'] and i_episode >= args['start_updates_to_model_after'] and total_numsteps % 10 == 0:
+                if len(memory) > args['batch_size'] and i_episode >= args['start_updates_to_model_after'] and total_numsteps % args['update_model_every_n_steps'] == 0:
                     model_loss = sac.update_model(memory, args['batch_size'], args['model_updates_per_step'])
                     avg_model_loss += model_loss
                     model_updates += 1
-            if len(memory) > args['batch_size'] and i_episode >= args['start_updates_to_p_q_after'] and total_numsteps % 10 == 0:
+            if len(memory) > args['batch_size'] and i_episode >= args['start_updates_to_p_q_after'] and total_numsteps % args['rl_update_every_n_steps'] == 0:
                 critic_loss, policy_loss = sac.update_parameters(memory, args['batch_size'], args['p_q_updates_per_step'])
                 updates += 1
                 avg_p_loss += policy_loss

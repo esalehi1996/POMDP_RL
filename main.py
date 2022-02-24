@@ -39,6 +39,8 @@ def main():
     parser.add_argument('--max_env_steps', type=int, default=-1)
     parser.add_argument('--logging_freq' , type=int , default=-1)
     parser.add_argument('--load_from_path', type=str, default='None')
+    parser.add_argument('--update_model_every_n_steps' , type=int , default=1)
+    parser.add_argument('--rl_update_every_n_steps', type=int, default=1)
     args = parser.parse_args()
 
     # convert to dictionary
