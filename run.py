@@ -159,7 +159,7 @@ def run_exp(args):
         if args['logging_freq'] != -1 and i_episode % args['logging_freq'] == 1 :
             sac.save_model(args['logdir'])
 
-        if k_steps >= 2000:
+        if k_steps >= 10000:
             k_steps = 0
             avg_reward = 0.
             episodes = 10
