@@ -159,7 +159,8 @@ def run_exp(args):
         if args['logging_freq'] != -1 and i_episode % args['logging_freq'] == 1 :
             sac.save_model(args['logdir'])
 
-        if k_steps >= 10000:
+        if k_steps >= 20000:
+            avg_running_reward = avg_reward/k_episode
             k_steps = 0
             avg_reward = 0.
             episodes = 10
@@ -200,8 +201,8 @@ def run_exp(args):
                     avgml = 0
                 else:
                     avgml = avg_model_loss / (model_updates)
-                print("Episode: {}, Total_num_steps: {},  episode steps: {}, avg_reward: {}, avg_q_loss: {}, avg_p_loss: {} , avg_model_loss: {}".format(
-                        i_episode,total_numsteps , avg_episode_steps / k_episode, avg_reward, avgql, avgpl, avgml))
+                print("Episode: {}, Total_num_steps: {},  episode steps: {}, avg_train_reward: {}, avg_test_reward: {}, avg_q_loss: {}, avg_p_loss: {} , avg_model_loss: {}".format(
+                        i_episode,total_numsteps , avg_episode_steps / k_episode, avg_running_reward, avg_reward, avgql, avgpl, avgml))
             if args['model_alg'] == 'None':
                 if updates == 0:
                     avgql = 0
@@ -209,8 +210,8 @@ def run_exp(args):
                 else:
                     avgql = avg_q_loss / updates
                     avgpl = avg_p_loss / updates
-                print("Episode: {}, Total_num_steps: {}, episode steps: {}, avg_reward: {}, avg_q_loss: {}, avg_p_loss: {}".format(i_episode, total_numsteps ,
-                                                                                                              avg_episode_steps / k_episode,
+                print("Episode: {}, Total_num_steps: {}, episode steps: {}, avg_train_reward: {}, avg_test_reward: {}, avg_q_loss: {}, avg_p_loss: {}".format(i_episode, total_numsteps ,
+                                                                                                              avg_episode_steps / k_episode, avg_running_reward ,
                                                                                                               avg_reward,
                                                                                                               avgql, avgpl))
 
