@@ -314,9 +314,9 @@ class SAC(object):
                 next_q_value = q_r + self.gamma * batch_mask.unsqueeze(1).to(self.device) * min_qf_next_target
             # print('next_q', next_q_value.shape , next_q_value)
 
-            qf1_loss = F.smooth_l1_loss(qf1,
+            qf1_loss = F.mse_loss(qf1,
                                   next_q_value)  # JQ = 𝔼(st,at)~D[0.5(Q1(st,at) - r(st,at) - γ(𝔼st+1~p[V(st+1)]))^2]
-            qf2_loss = F.smooth_l1_loss(qf2,
+            qf2_loss = F.mse_loss(qf2,
                                   next_q_value)  # JQ = 𝔼(st,at)~D[0.5(Q1(st,at) - r(st,at) - γ(𝔼st+1~p[V(st+1)]))^2]
             # qf_loss = qf1_loss + qf2_loss
             qf_loss = qf1_loss + qf2_loss
