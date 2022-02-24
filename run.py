@@ -65,7 +65,7 @@ def run_exp(args):
 
         while not done:
             ls_states.append(state)
-            if i_episode <= args['random_actions_until']:
+            if i_episode <= args['random_actions_until'] or args['only_train_model']:
                 # print('random action mode')
                 # action = 0
                 # # action = env.action_space.sample()  # Sample random action
@@ -86,7 +86,7 @@ def run_exp(args):
                     model_loss = sac.update_model(memory, args['batch_size'], args['model_updates_per_step'])
                     avg_model_loss += model_loss
                     model_updates += 1
-            if len(memory) > args['batch_size'] and i_episode >= args['start_updates_to_p_q_after'] and total_numsteps % args['rl_update_every_n_steps'] == 0:
+            if len(memory) > args['batch_size'] and i_episode >= args['start_updates_to_p_q_after'] and total_numsteps % args['rl_update_every_n_steps'] == 0 and not args['only_train_model']:
                 critic_loss, policy_loss = sac.update_parameters(memory, args['batch_size'], args['p_q_updates_per_step'])
                 updates += 1
                 avg_p_loss += policy_loss
@@ -156,35 +156,37 @@ def run_exp(args):
         #     avg_model_loss = 0
         #     updates = 0
 
-        if args['logging_freq'] != -1 and i_episode % args['logging_freq'] == 1 :
-            sac.save_model(args['logdir'])
 
-        if k_steps >= 20000:
+
+        if k_steps >= args['logging_freq']:
+            sac.save_model(args['logdir'])
             avg_running_reward = avg_reward/k_episode
             k_steps = 0
             avg_reward = 0.
             episodes = 10
-            start = True
-            hidden_p = None
-            action = 0
-            reward = 0
-            for _  in range(episodes):
-                state = env.reset()
-                episode_reward = 0
-                done = False
-                steps = 0
-                while not done:
-                    steps += 1
-                    action, hidden_p = sac.select_action(state, action, reward, hidden_p, start , evaluate=False)
-                    next_state, reward, done, _ = env.step(action)
-                    episode_reward += reward
 
-                    state = next_state
-                    if start == True:
-                        start = False
-                    if steps >= max_env_steps:
-                        break
-                avg_reward += episode_reward
+            if not args['only_train_model']:
+                for _  in range(episodes):
+                    start = True
+                    hidden_p = None
+                    action = 0
+                    reward = 0
+                    state = env.reset()
+                    episode_reward = 0
+                    done = False
+                    steps = 0
+                    while not done:
+                        steps += 1
+                        action, hidden_p = sac.select_action(state, action, reward, hidden_p, start , evaluate=False)
+                        next_state, reward, done, _ = env.step(action)
+                        episode_reward += reward
+
+                        state = next_state
+                        if start == True:
+                            start = False
+                        if steps >= max_env_steps:
+                            break
+                    avg_reward += episode_reward
             avg_reward /= episodes
 
         # writer.add_scalar('avg_reward/test', avg_reward, i_episode)
