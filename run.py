@@ -219,6 +219,7 @@ def run_exp(args):
 
 
             writer.add_scalar('Evaluation reward', avg_reward , total_numsteps)
+            writer.add_scalar('Training reward', avg_running_reward, total_numsteps)
             writer.add_scalar('Average Steps for each episode', avg_episode_steps , total_numsteps)
             writer.add_scalar('Loss/Policy', avgpl, total_numsteps)
             writer.add_scalar('Loss/Value', avgql, total_numsteps)
