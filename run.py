@@ -26,7 +26,7 @@ def run_exp(args):
     elif args['env_name'] == 'Voicemail':
         max_env_steps = 100
     elif args['env_name'] == 'DroneSurveillance':
-        max_env_steps = 100
+        max_env_steps = 200
     total_numsteps = 0
     k_steps = 0
     updates = 1
