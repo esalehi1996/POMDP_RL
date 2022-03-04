@@ -64,9 +64,9 @@ class SAC(object):
         hard_update(self.policy_cpu, self.policy)
         if self.rl_alg == 'QL':
             self.eps_greedy_parameters = {
-                "EPS_START" : 0.9 ,
-                "EPS_END" : 0.05 ,
-                "EPS_DECAY" : 50000
+                "EPS_START" : args['EPS_start'],
+                "EPS_END" : args['EPS_end'] ,
+                "EPS_DECAY" : args['EPS_decay']
             }
             self.env_steps = 0
         if self.automatic_entropy_tuning is True:

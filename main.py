@@ -42,6 +42,9 @@ def main():
     parser.add_argument('--update_model_every_n_steps' , type=int , default=1)
     parser.add_argument('--rl_update_every_n_steps', type=int, default=1)
     parser.add_argument('--only_train_model' , type=bool, default=False)
+    parser.add_argument('--EPS_start', type=float, default=0.95)
+    parser.add_argument('--EPS_decay', type=int, default=50000)
+    parser.add_argument('--EPS_end', type=float, default=0.05)
     args = parser.parse_args()
 
     # convert to dictionary
