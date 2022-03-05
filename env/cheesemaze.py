@@ -23,6 +23,7 @@ class CheeseMazeEnv(gym.Env):
         return [seed]
 
     def step(self, action):
+        done = False
         observation_probability = np.array([[1, 0, 0, 0, 0, 0, 0],
                                             [0, 1, 0, 0, 0, 0, 0],
                                             [0, 0, 1, 0, 0, 0, 0],
@@ -99,12 +100,13 @@ class CheeseMazeEnv(gym.Env):
             observation = self.np_random.multinomial(1, observation_probability[next_state, :]).argmax()
             self.renewal = self.current_state == next_state
         if next_state == 10:
+            done = True
             reward = 1.
         else:
             reward = 0.
         self.current_state = next_state
 
-        return observation, reward, False, {}
+        return observation, reward, done, {}
 
     def reset(self):
         observation_probability = np.array([[1, 0, 0, 0, 0, 0, 0],
