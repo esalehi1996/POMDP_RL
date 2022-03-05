@@ -2,6 +2,17 @@
 
 This repository contains code for solving Partially observable environments using off-policy model-free reinforcement learning algorithms such as Q-learning and Soft Actor-Critic.
 
+In this work we used two approaches for learning state representations for partially-observable environments:
+* **Generative model learning**
+  - In this approach a generative model is trained to predict next step observations and current step rewards. We are using maximum mean discrepancy loss for observation prediction and Mean-squared error loss for reward prediction. In this case the recurrent component is trained in the model learning phase and it is frozen in the reinforcement learning phase. 
+* **No seperate model learning**
+  - In this approach the model is not trained individually and the recurrent component is trained alongside the Q and policy network during the reinforcement learning phase.
+
+There are two options for the reinforcement learning algorithm:
+* **Soft Actor-Critic**
+  - This uses the Discrete environment case of the Soft Actor-Critic algorithm. (https://arxiv.org/abs/1910.07207)
+* **Q-learning**
+  - In this case we are using a Q-learning implementation using recurrent nets, double Q networks and polyak averaging for target Q updates.
 
 
 
@@ -21,6 +32,8 @@ This program accepts the following command line arguments:
 
 | Option          | Description |
 | --------------- | ----------- |
+| `--rl_alg` |  Reinforcement learning algorithm used for training the Policy/Q networks. It can be 'SAC' for Soft Actor-Critic or 'QL' for Q-learning. |
+| `--model_alg` |  This specifies whether model-learning is done or not. 'AIS' is for model learning. 'None' is for no model learning. |
 | `--seed` | Random seed used. |
 | `--exp_name` | Experiment name which is used as a prefix in directory name (The prefix is followed by time and date of the experiment in the directory name used)|
 | `--env_name` | The environment name.  |
@@ -43,8 +56,6 @@ This program accepts the following command line arguments:
 | `--replay_size` |  This spcecifies the number of episodes that are stored in the replay memory. After the replay buffer is filled, new experience episodes will overwrite the least recenet episodes in the buffer. |
 | `--cuda` |  If set to True, GPU will be used for both the model learning and the Policy/Q learning. |
 | `--AIS_lambda` |  The hyperparameter which specifies how we are averaging between reward learning loss and next observation predictions loss in the model learning phase. |
-| `--rl_alg` |  Reinforcement learning algorithm used for training the Policy/Q networks. It can be 'SAC' for Soft Actor-Critic or 'QL' for Q-learning. |
-| `--model_alg` |  This specifies whether model-learning is done or not. 'AIS' is for model learning. 'None' is for no model learning. |
 | `--max_env_steps` |  The maximum number of steps that the agent is allowed to take in each episode. |
 | `--logging_freq` |  The frequency in terms of environment steps in which we evaluate the agent, log the results and save the neural network parameters on disk. |
 | `--load_from_path` |  If a path is given, neural network parameters are loaded from the given path. |
