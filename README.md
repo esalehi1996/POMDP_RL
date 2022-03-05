@@ -21,7 +21,6 @@ This program accepts the following command line arguments:
 
 | Option          | Description |
 | --------------- | ----------- |
-
 | `--seed` | Random seed used. |
 | `--exp_name` | Experiment name which is used as a prefix in directory name (The prefix is followed by time and date of the experiment in the directory name used)|
 | `--env_name` | The environment name.  |
