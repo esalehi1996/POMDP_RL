@@ -23,6 +23,7 @@ class VoicemailEnv(gym.Env):
         return [seed]
 
     def step(self, action):
+        done = False
         if action == 0:  # refers to asking the user
             transition_probability = np.array([[1, 0], [0, 1]])
             reward = -1
@@ -32,6 +33,7 @@ class VoicemailEnv(gym.Env):
             self.renewal = self.current_state == next_state
 
         if action == 1:  # refers to Saving the data
+            done = True
             transition_probability = np.array([[0.65, 0.35], [0.65, 0.35]])
             rewards = [5, -10]
             observation_probability = np.array([[0.5, 0.5], [0.5, 0.5]])
@@ -41,6 +43,7 @@ class VoicemailEnv(gym.Env):
             self.renewal = self.current_state == next_state
 
         if action == 2:  # refers to deleting the data
+            done = True
             transition_probability = np.array([[0.65, 0.35], [0.65, 0.35]])
             rewards = [-20, 5]
             observation_probability = np.array([[0.5, 0.5], [0.5, 0.5]])
@@ -50,7 +53,7 @@ class VoicemailEnv(gym.Env):
             self.renewal = self.current_state == next_state
 
         self.current_state = next_state
-        return observation, reward, False, {}
+        return observation, reward, done, {}
 
     def reset(self):
         self.start_state = self.np_random.multinomial(1, self.start_state_probs).argmax()
