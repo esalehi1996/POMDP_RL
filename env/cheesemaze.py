@@ -122,4 +122,4 @@ class CheeseMazeEnv(gym.Env):
         self.current_state = copy.deepcopy(self.start_state)
 
         observation = self.np_random.multinomial(1, observation_probability[self.current_state, :]).argmax()
-        return observatio
+        return observation
