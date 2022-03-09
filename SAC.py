@@ -1,7 +1,7 @@
 import os
 
 from models import *
-from autoencoder.simple_autoencoder import autoencoder
+# from autoencoder.simple_autoencoder import autoencoder
 import torch
 import torch.nn.functional as F
 from torch.optim import Adam
