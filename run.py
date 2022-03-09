@@ -166,6 +166,7 @@ def run_exp(args):
             avg_running_reward = avg_reward/k_episode
             k_steps = 0
             avg_reward = 0.
+            avg_discount_adj_reward = 0.
             episodes = 10
 
             if not args['only_train_model']:
@@ -176,12 +177,14 @@ def run_exp(args):
                     reward = 0
                     state = env.reset()
                     episode_reward = 0
+                    episode_rewards = []
                     done = False
                     steps = 0
                     while not done:
                         steps += 1
                         action, hidden_p = sac.select_action(state, action, reward, hidden_p, start , evaluate=False)
                         next_state, reward, done, _ = env.step(action)
+                        episode_rewards.append(reward)
                         episode_reward += reward
 
                         state = next_state
@@ -190,7 +193,14 @@ def run_exp(args):
                         if steps >= max_env_steps:
                             break
                     avg_reward += episode_reward
+                    rets = []
+                    R = 0
+                    for i, r in enumerate(episode_rewards[::-1]):
+                        R = r + args['gamma'] * R
+                        rets.insert(0, R)
+                    avg_discount_adj_reward += rets[0]
             avg_reward /= episodes
+            avg_discount_adj_reward /= episodes
 
         # writer.add_scalar('avg_reward/test', avg_reward, i_episode)
 
@@ -206,8 +216,8 @@ def run_exp(args):
                     avgml = 0
                 else:
                     avgml = avg_model_loss / (model_updates)
-                print("Episode: {}, Total_num_steps: {},  episode steps: {}, avg_train_reward: {}, avg_test_reward: {}, avg_q_loss: {}, avg_p_loss: {} , avg_model_loss: {}".format(
-                        i_episode,total_numsteps , avg_episode_steps / k_episode, avg_running_reward, avg_reward, avgql, avgpl, avgml))
+                print("Episode: {}, Total_num_steps: {},  episode steps: {}, avg_train_reward: {}, avg_test_reward: {}, avg_test_discount_adjusted_reward: {}, avg_q_loss: {}, avg_p_loss: {} , avg_model_loss: {}".format(
+                        i_episode,total_numsteps , avg_episode_steps / k_episode, avg_running_reward, avg_reward, avg_discount_adj_reward,avgql, avgpl, avgml))
             if args['model_alg'] == 'None':
                 if updates == 0:
                     avgql = 0
@@ -215,13 +225,14 @@ def run_exp(args):
                 else:
                     avgql = avg_q_loss / updates
                     avgpl = avg_p_loss / updates
-                print("Episode: {}, Total_num_steps: {}, episode steps: {}, avg_train_reward: {}, avg_test_reward: {}, avg_q_loss: {}, avg_p_loss: {}".format(i_episode, total_numsteps ,
+                print("Episode: {}, Total_num_steps: {}, episode steps: {}, avg_train_reward: {}, avg_test_reward: {}, avg_test_discount_adjusted_reward: {}, avg_q_loss: {}, avg_p_loss: {}".format(i_episode, total_numsteps ,
                                                                                                               avg_episode_steps / k_episode, avg_running_reward ,
-                                                                                                              avg_reward,
+                                                                                                              avg_reward, avg_discount_adj_reward ,
                                                                                                               avgql, avgpl))
 
 
             writer.add_scalar('Evaluation reward', avg_reward , total_numsteps)
+            writer.add_scalar('Discount adjusted Evaluation reward', avg_discount_adj_reward, total_numsteps)
             writer.add_scalar('Training reward', avg_running_reward, total_numsteps)
             writer.add_scalar('Average Steps for each episode', avg_episode_steps , total_numsteps)
             writer.add_scalar('Loss/Policy', avgpl, total_numsteps)
