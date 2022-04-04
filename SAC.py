@@ -1,17 +1,27 @@
 import os
 
 from models import *
-# from autoencoder.simple_autoencoder import autoencoder
+from autoencoder.simple_autoencoder import autoencoder
 import torch
 import torch.nn.functional as F
 from torch.optim import Adam
+from torchvision import transforms
+from PIL import Image
 
 
 class SAC(object):
-    def __init__(self, num_inputs, action_space, args):
+    def __init__(self, env, args):
+
+        if args['env_name'][:8] == 'MiniGrid':
+            action_space = env.action_space
+
+        else:
+            num_inputs = env.observation_space.n
+            action_space = env.action_space
+            self.obs_dim = num_inputs
+            self.state_size = num_inputs
 
         self.act_dim = action_space.n
-        self.obs_dim = num_inputs
         self.Lambda = args['AIS_lambda']
         self.gamma = args['gamma']
         self.tau = args['tau']
@@ -19,7 +29,6 @@ class SAC(object):
         self.AIS_state_size = args['AIS_state_size']
         self.target_update_interval = args['target_update_interval']
         self.action_space = action_space
-        self.state_size = num_inputs
         self.automatic_entropy_tuning = args['automatic_entropy_tuning']
         self.rl_alg = args['rl_alg']
         print(self.rl_alg)
@@ -27,20 +36,37 @@ class SAC(object):
         # self.automatic_entropy_tuning = args.automatic_entropy_tuning
 
         self.device = torch.device("cuda" if args['cuda'] else "cpu")
-        self.policy = policy_net_lowdim(action_space.n, self.AIS_state_size).to(self.device)
+
+        if args['env_name'][:8] == 'MiniGrid':
+            autoencoder_path = os.path.join(os.path.dirname(os.path.realpath(__file__)), 'autoencoder', args['env_name'])
+            print(autoencoder_path)
+            print(os.path.join(autoencoder_path, 'autoencoder_final.pth'))
+            print('gggg')
+            self.autoencoder_model = autoencoder(True)
+            self.autoencoder_model.load_state_dict(
+                torch.load(os.path.join(autoencoder_path, 'autoencoder_final.pth')))
+            self.observation_mean = torch.load(os.path.join(autoencoder_path, 'mean.pt'))
+            self.observation_scaler = torch.load(os.path.join(autoencoder_path, 'max_vals.pt')) * 1.2
+            self.transform = transforms.Compose([transforms.ToTensor(), transforms.Normalize(self.observation_mean, self.observation_scaler)])
+            num_inputs = self.autoencoder_model.latent_space_size
+            self.obs_dim = num_inputs
+
+
+        self.policy = policy_net(action_space.n, self.AIS_state_size).to(self.device)
 
         self.critic = QNetwork_discrete(self.AIS_state_size, action_space.n, args['hidden_size']).to(device=self.device)
         self.critic_target = QNetwork_discrete(self.AIS_state_size, action_space.n, args['hidden_size']).to(self.device)
 
-        self.policy_cpu = policy_net_lowdim(action_space.n, self.AIS_state_size)
+        self.policy_cpu = policy_net(action_space.n, self.AIS_state_size)
         self.q_cpu = QNetwork_discrete(self.AIS_state_size, action_space.n, args['hidden_size'])
 
         # if self.alg == 'SAC+AIS':
-        self.rho = rho_net_lowdim(num_inputs, action_space.n, self.AIS_state_size).to(self.device)
+        self.rho = rho_net(num_inputs, action_space.n, self.AIS_state_size).to(self.device)
+        self.rho_cpu = rho_net(num_inputs, action_space.n, self.AIS_state_size)
+        self.psi = psi_net(num_inputs, action_space.n, self.AIS_state_size).to(self.device)
+
         self.critic_optim = Adam(self.critic.parameters(), lr=args['rl_lr'])
         self.policy_optim = Adam(self.policy.parameters(), lr=args['rl_lr'])
-        self.rho_cpu = rho_net_lowdim(num_inputs, action_space.n, self.AIS_state_size)
-        self.psi = psi_net_lowdim(num_inputs, action_space.n, self.AIS_state_size).to(self.device)
 
         if self.model_alg == 'AIS':
             self.AIS_optimizer = Adam(list(self.rho.parameters()) + list(self.psi.parameters()), lr=args['AIS_lr'])
@@ -85,6 +111,15 @@ class SAC(object):
 
         # self.policy_optim = Adam(list(self.policy.parameters()) + list(self.rho_policy.parameters()), lr=args.lr)
 
+    def get_encoded_obs(self, obs):
+        obs = Image.fromarray(obs)
+        obs = self.transform(obs)
+        obs = obs.reshape(-1)
+        encoded_obs = self.autoencoder_model(obs, getLatent=True).detach()
+        return encoded_obs
+
+
+
     def select_action(self, state, action, reward, hidden_p, start , evaluate):
         # print('**************start************')
         # print(start)
@@ -100,7 +135,7 @@ class SAC(object):
             else:
                 action = convert_int_to_onehot(action, self.action_space.n)
                 reward = torch.Tensor([reward])
-            state = convert_int_to_onehot(state, self.state_size)
+            # state = convert_int_to_onehot(state, self.state_size) this is what was commented ***
             rho_input = torch.cat((state, action)).reshape(1, 1, -1)
             # print('rho_in',rho_input)
             # if self.alg == 'SAC+AIS':
@@ -157,7 +192,8 @@ class SAC(object):
             # print('lengths',batch_lengths.shape,batch_lengths)
             batch_rewards = batch_rewards.to(self.device)
 
-            input_obs = F.one_hot(batch_obs.to((torch.int64)), num_classes=self.obs_dim).to(self.device)
+            # input_obs = F.one_hot(batch_obs.to((torch.int64)), num_classes=self.obs_dim).to(self.device) ** this is what was commented
+            input_obs = batch_obs.to(self.device)
             # print('one_hot_obs',input_obs.shape , input_obs)
 
             input_acts = batch_acts[:, :batch_acts.shape[1] - 1]
@@ -251,12 +287,18 @@ class SAC(object):
 
             batch_idx_ = (temp_ones * batch_idx_[:, :, None]).to(self.device)
 
-            input_obs = F.one_hot(batch_obs.to((torch.int64)), num_classes=self.obs_dim).to(self.device)
+            # input_obs = F.one_hot(batch_obs.to((torch.int64)), num_classes=self.obs_dim).to(self.device) this is what was commented
+
+            input_obs = batch_obs.to(self.device)
+
+            # print('batch_obs',batch_obs.shape,batch_obs)
 
             input_acts = batch_acts[:, :batch_acts.shape[1] - 1]
             input_acts = F.one_hot(input_acts.to((torch.int64)), num_classes=self.act_dim)
 
             input_acts = torch.cat((torch.zeros(batch_size, 1, self.act_dim), input_acts), 1).to(self.device)
+
+            # print('input_acts',input_acts.shape,input_acts)
 
             rho_input = torch.cat((input_obs, input_acts), 2)
 
@@ -412,3 +454,7 @@ class SAC(object):
         self.rho.load_state_dict(checkpoint['AIS_rho'])
         self.rho_cpu.load_state_dict(checkpoint['AIS_rho'])
         self.psi.load_state_dict(checkpoint['AIS_psi'])
+
+    def get_obs_dim(self):
+        return self.obs_dim
+

@@ -12,7 +12,7 @@ class Rec_ReplayMemory:
         self.max_seq_len = max_sequence_length
         self.obs_dim = obs_dim
         self.act_dim = act_dim
-        self.buffer_states = np.zeros([self.capacity, self.max_seq_len], dtype=np.int32)
+        self.buffer_states = np.zeros([self.capacity, self.max_seq_len , self.obs_dim], dtype=np.float32)
         self.buffer_actions = np.zeros([self.capacity, self.max_seq_len], dtype=np.int32)
         self.buffer_rewards = np.zeros([self.capacity, self.max_seq_len], dtype=np.float32)
         self.buffer_ep_len = np.zeros([self.capacity], dtype=np.int32)
@@ -31,16 +31,20 @@ class Rec_ReplayMemory:
         # self.buffer_actions[self.position] = deepcopy(ep_actions)
         # self.buffer_rewards[self.position] = deepcopy(ep_rewards)
         # self.buffer_true_states[self.position] = deepcopy(ep_true_states)
+        # print(ep_states)
         np_states = np.array(ep_states)
+        # print('a',np_states.shape , np_states)
         np_actions = np.array(ep_actions)
         np_rewards = np.array(ep_rewards)
         self.buffer_ep_len[self.position] = len(ep_states)
-        self.buffer_states[self.position, :] = np.zeros([self.max_seq_len], dtype=np.int32)
+        self.buffer_states[self.position, : , :] = np.zeros([self.max_seq_len, self.obs_dim], dtype=np.float32)
         self.buffer_actions[self.position, :] = np.zeros([self.max_seq_len], dtype=np.int32)
         self.buffer_rewards[self.position, :] = np.zeros([self.max_seq_len], dtype=np.float32)
         self.buffer_states[self.position, :len(ep_states)] = np_states
         self.buffer_actions[self.position, :len(ep_states)] = np_actions
         self.buffer_rewards[self.position, :len(ep_states)] = np_rewards
+
+        # print('b',self.buffer_states[self.position,:,:].shape,self.buffer_states[self.position,:,:])
 
         if self.full == False and self.position + 1 == self.capacity:
             self.full = True

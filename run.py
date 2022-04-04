@@ -7,6 +7,10 @@ from env.voicemail import VoicemailEnv
 from SAC import SAC
 from Replaybuffer import Rec_ReplayMemory
 from torch.utils.tensorboard import SummaryWriter
+import gym
+import gym_minigrid
+from gym_minigrid.wrappers import *
+from models import convert_int_to_onehot
 from args import Args
 import pickle
 # env = gym.make("Battleship-v0")
@@ -30,17 +34,24 @@ def run_exp(args):
     elif args['env_name'] == 'DroneSurveillance':
         env = DroneSurveillanceEnv()
         max_env_steps = 200
+    elif args['env_name'][:8] == 'MiniGrid':
+        env = gym.make(args['env_name'])
+        max_env_steps = 400
     total_numsteps = 0
     k_steps = 0
     updates = 1
     print(env.action_space, env.observation_space)
-    sac = SAC(env.observation_space.n, env.action_space, args)
+    sac = SAC(env, args)
 
     if args['load_from_path'] != 'None':
         print('---------------  Loading Model from path:' , args['load_from_path'] , '-----------------')
         sac.load_model(args['load_from_path'])
 
-    memory = Rec_ReplayMemory(args['replay_size'], env.observation_space.n, env.action_space.n, 1000, args['seed'])
+    if args['env_name'][:8] == 'MiniGrid':
+        state_size = sac.get_obs_dim()
+    else:
+        state_size = env.observation_space.n
+    memory = Rec_ReplayMemory(args['replay_size'], state_size, env.action_space.n, 1000, args['seed'])
 
     ls_running_rewards = []
     avg_reward = 0
@@ -67,7 +78,15 @@ def run_exp(args):
         # ls_actions.append(0.)
 
         while not done:
-            ls_states.append(state)
+            # print('staaart')
+            if args['env_name'][:8] == 'MiniGrid':
+                state = state['image']
+                state = sac.get_encoded_obs(state)
+            else:
+                state = convert_int_to_onehot(state, state_size)
+            # print('printing state',state.shape, state)
+            # raise "Error"
+            ls_states.append(state.numpy())
             if i_episode <= args['random_actions_until'] or args['only_train_model']:
                 # print('random action mode')
                 # action = 0
@@ -181,6 +200,11 @@ def run_exp(args):
                     done = False
                     steps = 0
                     while not done:
+                        if args['env_name'][:8] == 'MiniGrid':
+                            state = state['image']
+                            state = sac.get_encoded_obs(state)
+                        else:
+                            state = convert_int_to_onehot(state, state_size)
                         steps += 1
                         action, hidden_p = sac.select_action(state, action, reward, hidden_p, start , evaluate=False)
                         next_state, reward, done, _ = env.step(action)

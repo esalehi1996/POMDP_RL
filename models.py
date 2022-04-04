@@ -6,9 +6,9 @@ from torch.distributions import Normal
 from torch.distributions import Categorical
 
 
-class rho_net_lowdim(nn.Module):
+class rho_net(nn.Module):
     def __init__(self, num_obs, num_actions, AIS_state_size=5):
-        super(rho_net_lowdim, self).__init__()
+        super(rho_net, self).__init__()
         input_ndims = num_obs + num_actions
         # input_ndims = num_obs
         self.AIS_state_size = AIS_state_size
@@ -27,9 +27,9 @@ class rho_net_lowdim(nn.Module):
 
 
 # psi is the same as \hat P^y in the paper
-class psi_net_lowdim(nn.Module):
+class psi_net(nn.Module):
     def __init__(self, num_obs, num_actions, AIS_state_size=5):
-        super(psi_net_lowdim, self).__init__()
+        super(psi_net, self).__init__()
         input_ndims = AIS_state_size + num_actions
         self.softmax = nn.Softmax(dim=2)
         self.fc1_r = nn.Linear(input_ndims, int(AIS_state_size / 2))
@@ -45,9 +45,9 @@ class psi_net_lowdim(nn.Module):
         return reward, obs_probs
 
 
-class policy_net_lowdim(nn.Module):
+class policy_net(nn.Module):
     def __init__(self, num_actions, AIS_state_size=5, exploration_temp=1.):
-        super(policy_net_lowdim, self).__init__()
+        super(policy_net, self).__init__()
         self.exploration_temp = exploration_temp
         input_ndims = AIS_state_size
         self.fc1 = nn.Linear(input_ndims, AIS_state_size)
