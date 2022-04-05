@@ -37,7 +37,9 @@ class SAC(object):
 
         self.device = torch.device("cuda" if args['cuda'] else "cpu")
 
+        highdim = False
         if args['env_name'][:8] == 'MiniGrid':
+            highdim = True
             autoencoder_path = os.path.join(os.path.dirname(os.path.realpath(__file__)), 'autoencoder', args['env_name'])
             # print(autoencoder_path)
             # print(os.path.join(autoencoder_path, 'autoencoder_final.pth'))
@@ -63,7 +65,7 @@ class SAC(object):
         # if self.alg == 'SAC+AIS':
         self.rho = rho_net(num_inputs, action_space.n, self.AIS_state_size).to(self.device)
         self.rho_cpu = rho_net(num_inputs, action_space.n, self.AIS_state_size)
-        self.psi = psi_net(num_inputs, action_space.n, self.AIS_state_size).to(self.device)
+        self.psi = psi_net(num_inputs, action_space.n, self.AIS_state_size , highdim).to(self.device)
 
         self.critic_optim = Adam(self.critic.parameters(), lr=args['rl_lr'])
         self.policy_optim = Adam(self.policy.parameters(), lr=args['rl_lr'])

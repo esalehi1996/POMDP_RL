@@ -28,7 +28,7 @@ class rho_net(nn.Module):
 
 # psi is the same as \hat P^y in the paper
 class psi_net(nn.Module):
-    def __init__(self, num_obs, num_actions, AIS_state_size=5):
+    def __init__(self, num_obs, num_actions, AIS_state_size=5 , highdim = False):
         super(psi_net, self).__init__()
         input_ndims = AIS_state_size + num_actions
         self.softmax = nn.Softmax(dim=2)
@@ -36,12 +36,15 @@ class psi_net(nn.Module):
         self.fc1_d = nn.Linear(input_ndims, int(AIS_state_size / 2))
         self.fc2_r = nn.Linear(int(AIS_state_size / 2), 1)
         self.fc2_d = nn.Linear(int(AIS_state_size / 2), num_obs)
+        self.highdim = highdim
 
     def forward(self, x):
         x_r = F.elu(self.fc1_r(x))
         x_d = F.elu(self.fc1_d(x))
         reward = self.fc2_r(x_r)
-        obs_probs = self.softmax(self.fc2_d(x_d))
+        obs_probs = self.fc2_d(x_d)
+        if self.highdim == False:
+            obs_probs = self.softmax(obs_probs)
         return reward, obs_probs
 
 
