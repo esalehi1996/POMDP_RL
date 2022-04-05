@@ -40,7 +40,6 @@ def run_exp(args):
     total_numsteps = 0
     k_steps = 0
     updates = 1
-    print(env.action_space, env.observation_space)
     sac = SAC(env, args)
 
     if args['load_from_path'] != 'None':
@@ -49,8 +48,10 @@ def run_exp(args):
 
     if args['env_name'][:8] == 'MiniGrid':
         state_size = sac.get_obs_dim()
+        print(env.action_space, state_size)
     else:
         state_size = env.observation_space.n
+        print(env.action_space, state_size)
     memory = Rec_ReplayMemory(args['replay_size'], state_size, env.action_space.n, 1000, args['seed'])
 
     ls_running_rewards = []
@@ -94,9 +95,8 @@ def run_exp(args):
                 # if episode_steps > 10:
                 action = env.action_space.sample()
             else:
-                action, hidden_p = sac.select_action(state, action, reward, hidden_p, start , False)  # Sample action from policy
+                action, hidden_p = sac.select_action(state, action, reward, hidden_p, start , evaluate = False)  # Sample action from policy
                 # print(action)
-            # print(action)
             if start == True:
                 start = False
 
@@ -206,7 +206,7 @@ def run_exp(args):
                         else:
                             state = convert_int_to_onehot(state, state_size)
                         steps += 1
-                        action, hidden_p = sac.select_action(state, action, reward, hidden_p, start , evaluate=False)
+                        action, hidden_p = sac.select_action(state, action, reward, hidden_p, start , evaluate=True)
                         # action = env.action_space.sample()
                         next_state, reward, done, _ = env.step(action)
                         episode_rewards.append(reward)

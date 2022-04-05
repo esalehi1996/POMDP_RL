@@ -39,12 +39,12 @@ class SAC(object):
 
         if args['env_name'][:8] == 'MiniGrid':
             autoencoder_path = os.path.join(os.path.dirname(os.path.realpath(__file__)), 'autoencoder', args['env_name'])
-            print(autoencoder_path)
-            print(os.path.join(autoencoder_path, 'autoencoder_final.pth'))
-            print('gggg')
+            # print(autoencoder_path)
+            # print(os.path.join(autoencoder_path, 'autoencoder_final.pth'))
+            # print('gggg')
             self.autoencoder_model = autoencoder(True)
             self.autoencoder_model.load_state_dict(
-                torch.load(os.path.join(autoencoder_path, 'autoencoder_final.pth')))
+                torch.load(os.path.join(autoencoder_path, 'autoencoder_final.pth'), map_location=self.device))
             self.observation_mean = torch.load(os.path.join(autoencoder_path, 'mean.pt'))
             self.observation_scaler = torch.load(os.path.join(autoencoder_path, 'max_vals.pt')) * 1.2
             self.transform = transforms.Compose([transforms.ToTensor(), transforms.Normalize(self.observation_mean, self.observation_scaler)])
@@ -115,7 +115,9 @@ class SAC(object):
         obs = Image.fromarray(obs)
         obs = self.transform(obs)
         obs = obs.reshape(-1)
-        encoded_obs = self.autoencoder_model(obs, getLatent=True).detach()
+        # print(obs)
+        # print(self.autoencoder_model)
+        encoded_obs = self.autoencoder_model(obs, getLatent=True).cpu().detach()
         return encoded_obs
 
 
@@ -172,7 +174,7 @@ class SAC(object):
                             math.exp(-1. * self.env_steps / self.eps_greedy_parameters['EPS_DECAY'])
             self.env_steps += 1
             sample = random.random()
-            if sample > eps_threshold:
+            if sample > eps_threshold or evaluate:
                 return max_ac.detach().cpu().numpy()[0] , hidden_p
             else:
                 # print('gggggggggggg',torch.tensor([[random.randrange(self.act_dim)]],dtype=torch.long).cpu().numpy())
