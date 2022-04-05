@@ -207,6 +207,7 @@ def run_exp(args):
                             state = convert_int_to_onehot(state, state_size)
                         steps += 1
                         action, hidden_p = sac.select_action(state, action, reward, hidden_p, start , evaluate=False)
+                        action = env.action_space.sample()
                         next_state, reward, done, _ = env.step(action)
                         episode_rewards.append(reward)
                         episode_reward += reward
