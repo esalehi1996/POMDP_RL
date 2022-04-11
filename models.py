@@ -111,12 +111,12 @@ class QNetwork_discrete(nn.Module):
 
         # Q1 architecture
         self.linear1 = nn.Linear(num_inputs, hidden_dim)
-        # self.linear2 = nn.Linear(hidden_dim, hidden_dim)
+        self.linear2 = nn.Linear(hidden_dim, hidden_dim)
         self.linear3 = nn.Linear(hidden_dim, num_actions)
 
         # Q2 architecture
         self.linear4 = nn.Linear(num_inputs, hidden_dim)
-        # self.linear5 = nn.Linear(hidden_dim, hidden_dim)
+        self.linear5 = nn.Linear(hidden_dim, hidden_dim)
         self.linear6 = nn.Linear(hidden_dim, num_actions)
 
         self.apply(weights_init_)
@@ -125,11 +125,11 @@ class QNetwork_discrete(nn.Module):
         # print(xu.shape)
 
         x1 = F.elu(self.linear1(state))
-        # x1 = F.tanh(self.linear2(x1))
+        x1 = F.elu(self.linear2(x1))
         x1 = self.linear3(x1)
 
         x2 = F.elu(self.linear4(state))
-        # x2 = F.tanh(self.linear5(x2))
+        x2 = F.elu(self.linear5(x2))
         x2 = self.linear6(x2)
 
         return x1, x2
