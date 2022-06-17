@@ -683,14 +683,17 @@ class SAC(object):
                 packed_target_ais = pack_padded_sequence(ais_z_target, list(batch_learn_len), batch_first=True,
                                            enforce_sorted=False)
 
-                qf_target = self.critic_target(packed_target_ais.data)
-                max_idx = self.critic(packed_target_ais.data).max(1)[1]
+                # qf_target = self.critic_target(packed_target_ais.data)
+                qf_target = self.critic_target(packed_target_ais.data).max(1)[0]
+                # print(qf_target.shape)
+                # assert False
+                # max_idx = self.critic(packed_target_ais.data).max(1)[1]
 
                 # print(packed_target_ais.data.shape)
                 # print(qf_target.shape)
                 # print(max_idx.shape)
 
-                qf_target = qf_target.gather(1, max_idx.view(-1,1).long())
+                # qf_target = qf_target.gather(1, max_idx.view(-1,1).long())
 
                 # print(qf_target.shape)
 
