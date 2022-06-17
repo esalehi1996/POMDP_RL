@@ -709,7 +709,7 @@ class SAC(object):
                 # print(packed_final.data.shape)
 
 
-                next_q_value = packed_reward.data + self.gamma *  packed_final.data * qf_target.view(-1)
+                next_q_value = packed_reward.data + (self.gamma ** self.args['forward_len']) *  packed_final.data * qf_target.view(-1)
 
 
                 # print(next_q_value.shape)
