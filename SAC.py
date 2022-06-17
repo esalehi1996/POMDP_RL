@@ -96,6 +96,7 @@ class SAC(object):
         hard_update(self.q_cpu, self.critic)
         hard_update(self.rho_cpu, self.rho)
         hard_update(self.policy_cpu, self.policy)
+        self.update_to_q = 0
         if self.rl_alg == 'QL':
             self.eps_greedy_parameters = {
                 "EPS_START" : args['EPS_start'],
@@ -583,6 +584,7 @@ class SAC(object):
         policy_losses = torch.zeros(updates)
         # print(list(range(updates)))
         for i_updates in range(updates):
+            self.update_to_q += 1
             batch_burn_in_hist, batch_learn_hist, batch_rewards, batch_learn_len, batch_forward_idx, batch_final_flag, batch_current_act, batch_hidden, batch_burn_in_len, batch_learn_forward_len = memory.sample(batch_size)
 
 
@@ -869,9 +871,10 @@ class SAC(object):
             #     policy_loss.backward()
             #     self.policy_optim.step()
 
-        if updates % self.target_update_interval == 0:
-            # hard_update(self.critic_target, self.critic)
-            soft_update(self.critic_target, self.critic, self.tau)
+        if self.update_to_q % self.target_update_interval == 0:
+            hard_update(self.critic_target, self.critic)
+            print('hard update')
+            # soft_update(self.critic_target, self.critic, self.tau)
             # if self.alg == 'SAC':
             #     soft_update(self.critic_rho_target, self.rho_q, self.tau)
 
