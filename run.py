@@ -6,6 +6,7 @@ from env.cheesemaze import CheeseMazeEnv
 from env.voicemail import VoicemailEnv
 from SAC import SAC
 from Replaybuffer import Rec_ReplayMemory
+from r2d2replaybuffer import r2d2_ReplayMemory
 from torch.utils.tensorboard import SummaryWriter
 import gym
 import gym_minigrid
@@ -37,6 +38,7 @@ def run_exp(args):
     elif args['env_name'][:8] == 'MiniGrid':
         env = gym.make(args['env_name'])
         max_env_steps = 400
+    args['max_env_steps'] = max_env_steps
     total_numsteps = 0
     k_steps = 0
     updates = 1
@@ -52,7 +54,12 @@ def run_exp(args):
     else:
         state_size = env.observation_space.n
         print(env.action_space, state_size)
-    memory = Rec_ReplayMemory(args['replay_size'], state_size, env.action_space.n, 1000, args['seed'])
+    if args['replay_type'] == 'vanilla':
+        memory = Rec_ReplayMemory(args['replay_size'], state_size, env.action_space.n, 1000, args['seed'])
+        print('vanilla')
+    if args['replay_type'] == 'r2d2':
+        memory = r2d2_ReplayMemory(args['replay_size'], state_size, env.action_space.n, 1000 , args , args['seed'])
+        print('r2d2')
 
     ls_running_rewards = []
     avg_reward = 0
@@ -71,6 +78,7 @@ def run_exp(args):
         ls_states = []
         ls_actions = []
         ls_rewards = []
+        ls_hiddens = []
         start = True
         hidden_p = None
         action = 0
@@ -88,6 +96,7 @@ def run_exp(args):
             # print('printing state',state.shape, state)
             # raise "Error"
             ls_states.append(state.numpy())
+            ls_hiddens.append(hidden_p)
             if i_episode <= args['random_actions_until'] or args['only_train_model']:
                 # print('random action mode')
                 # action = 0
@@ -104,15 +113,17 @@ def run_exp(args):
             ls_actions.append(action)
             ls_rewards.append(reward)
             if args['model_alg'] == 'AIS':
-                if len(memory) > args['batch_size'] and i_episode >= args['start_updates_to_model_after'] and total_numsteps % args['update_model_every_n_steps'] == 0:
+                if memory.len_fullep() > args['batch_size'] and i_episode >= args['start_updates_to_model_after'] and total_numsteps % args['update_model_every_n_steps'] == 0:
                     model_loss = sac.update_model(memory, args['batch_size'], args['model_updates_per_step'])
                     avg_model_loss += model_loss
                     model_updates += 1
-            if len(memory) > args['batch_size'] and i_episode >= args['start_updates_to_p_q_after'] and total_numsteps % args['rl_update_every_n_steps'] == 0 and not args['only_train_model']:
+            if memory.len_r2d2() > args['batch_size'] and i_episode >= args['start_updates_to_p_q_after'] and total_numsteps % args['rl_update_every_n_steps'] == 0 and not args['only_train_model']:
                 critic_loss, policy_loss = sac.update_parameters(memory, args['batch_size'], args['p_q_updates_per_step'])
                 updates += 1
                 avg_p_loss += policy_loss
                 avg_q_loss += critic_loss
+                # avg_p_loss += 0
+                # avg_q_loss += 0
             episode_steps += 1
             total_numsteps += 1
             k_steps += 1
@@ -122,7 +133,7 @@ def run_exp(args):
             if episode_steps >= max_env_steps:
                 break
         # print('gg')
-        memory.push(ls_states, ls_actions, ls_rewards)  # Append transition to memory
+        memory.push(ls_states, ls_actions, ls_rewards , ls_hiddens)  # Append transition to memory
         # print(ls_states,ls_actions,ls_rewards)
         ls_running_rewards.append(episode_reward)
         avg_reward = avg_reward + episode_reward

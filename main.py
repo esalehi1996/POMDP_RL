@@ -45,6 +45,10 @@ def main():
     parser.add_argument('--EPS_start', type=float, default=0.95)
     parser.add_argument('--EPS_decay', type=int, default=50000)
     parser.add_argument('--EPS_end', type=float, default=0.05)
+    parser.add_argument('--burn_in_len', type=int, default=50)
+    parser.add_argument('--learning_obs_len', type=int, default=10)
+    parser.add_argument('--forward_len', type=int, default=3)
+    parser.add_argument('--replay_type', type=str, default='vanilla')
     args = parser.parse_args()
 
     # convert to dictionary
