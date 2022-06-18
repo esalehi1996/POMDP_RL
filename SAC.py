@@ -628,10 +628,10 @@ class SAC(object):
             #
             # print(hidden_burn_in[0][:, zero_idx, :], hidden_burn_in[1][:, zero_idx, :])
             batch_learn_hist = torch.from_numpy(batch_learn_hist).to(self.device)
-            self.critic.train()
+            # self.critic.train()
             if self.model_alg == 'AIS':
-                with torch.no_grad():
-                    ais_z, hidden = self.rho(batch_learn_hist, batch_size, hidden_burn_in, self.device,
+                # with torch.no_grad():
+                ais_z, hidden = self.rho(batch_learn_hist, batch_size, hidden_burn_in, self.device,
                                                  list(batch_learn_forward_len))
 
             if self.model_alg == 'None':
