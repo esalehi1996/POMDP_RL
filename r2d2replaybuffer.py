@@ -52,8 +52,8 @@ class r2d2_ReplayMemory:
         # print(len(ep_states), ep_states)
         # print(len(ep_actions), ep_actions)
         # print(len(ep_rewards), ep_rewards)
-        for i in range(len(ep_states)):
-            print(i,ep_states[i],ep_actions[i],ep_rewards[i])
+        # for i in range(len(ep_states)):
+        #     print(i,ep_states[i],ep_actions[i],ep_rewards[i])
 
         ls_actions = [np.zeros(self.act_dim) for i in range(len(ep_actions))]
         # current_act_ls = [np.zeros(self.act_dim) for i in range(len(ep_actions))]
@@ -188,7 +188,7 @@ class r2d2_ReplayMemory:
         if self.max_full_ep_size < self.position_full_ep:
             self.max_full_ep_size = self.position_full_ep
 
-        assert False
+        # assert False
 
         # print('b',self.buffer_states[self.position,:,:].shape,self.buffer_states[self.position,:,:])
 
