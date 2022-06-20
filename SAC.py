@@ -10,6 +10,8 @@ from PIL import Image
 from torch.nn.utils.rnn import pack_padded_sequence, pad_packed_sequence
 import torch.nn.utils.rnn as rnn_utils
 import numpy as np
+import math
+import random
 
 class SAC(object):
     def __init__(self, env, args):
@@ -156,6 +158,14 @@ class SAC(object):
             ais_z = ais_z[ais_z.shape[0] - 1]
             # print('ais',ais_z)
             # print('hidden',hidden_p)
+            if self.rl_alg == 'QL':
+                eps_threshold = self.eps_greedy_parameters['EPS_END'] + (
+                            self.eps_greedy_parameters['EPS_START'] - self.eps_greedy_parameters['EPS_END']) * \
+                                math.exp(-1. * self.env_steps / self.eps_greedy_parameters['EPS_DECAY'])
+                self.env_steps += 1
+                sample = random.random()
+                if sample < eps_threshold and evaluate is False:
+                    return torch.tensor([[random.randrange(self.act_dim)]],dtype=torch.long).cpu().numpy()[0][0] , hidden_p
             if self.rl_alg == 'SAC':
                 action, pi, _ = self.policy_cpu.sample(ais_z.detach())
                 # print(action)
@@ -177,17 +187,7 @@ class SAC(object):
         if self.rl_alg == 'SAC':
             return action.detach().cpu().numpy()[0][0], hidden_p
         if self.rl_alg == 'QL':
-            import math
-            import random
-            eps_threshold = self.eps_greedy_parameters['EPS_END'] + (self.eps_greedy_parameters['EPS_START'] - self.eps_greedy_parameters['EPS_END']) * \
-                            math.exp(-1. * self.env_steps / self.eps_greedy_parameters['EPS_DECAY'])
-            self.env_steps += 1
-            sample = random.random()
-            if sample > eps_threshold or evaluate:
-                return max_ac.detach().cpu().numpy()[0] , hidden_p
-            else:
-                # print('gggggggggggg',torch.tensor([[random.randrange(self.act_dim)]],dtype=torch.long).cpu().numpy())
-                return torch.tensor([[random.randrange(self.act_dim)]],dtype=torch.long).cpu().numpy()[0][0] , hidden_p
+            return max_ac.detach().cpu().numpy()[0] , hidden_p
 
     def update_parameters(self, memory, batch_size, updates):
         if self.args['replay_type'] == 'vanilla':
