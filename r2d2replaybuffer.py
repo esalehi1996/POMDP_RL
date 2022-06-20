@@ -49,9 +49,12 @@ class r2d2_ReplayMemory:
         # print(len(ep_rewards))
         # print(len(ep_hiddens))
         #
+        # print(ep_states[0].shape)
         # print(len(ep_states), ep_states)
         # print(len(ep_actions), ep_actions)
         # print(len(ep_rewards), ep_rewards)
+        #
+        # assert False
         # for i in range(len(ep_states)):
         #     print(i,ep_states[i],ep_actions[i],ep_rewards[i])
 
@@ -172,21 +175,22 @@ class r2d2_ReplayMemory:
 
         # print(sum_rewards(ls,gamma))
 
-        np_states = np.array(ep_states)
-        np_actions = np.array(ep_actions)
-        np_rewards = np.array(ep_rewards)
-        self.buffer_full_ep_len[self.position_full_ep] = len(ep_states)
-        self.buffer_full_ep_states[self.position_full_ep, :, :] = np.zeros([self.max_seq_len, self.obs_dim], dtype=np.float32)
-        self.buffer_full_ep_actions[self.position_full_ep, :] = np.zeros([self.max_seq_len], dtype=np.int32)
-        self.buffer_full_ep_rewards[self.position_full_ep, :] = np.zeros([self.max_seq_len], dtype=np.float32)
-        self.buffer_full_ep_states[self.position_full_ep, :len(ep_states)] = np_states
-        self.buffer_full_ep_actions[self.position_full_ep, :len(ep_states)] = np_actions
-        self.buffer_full_ep_rewards[self.position_full_ep, :len(ep_states)] = np_rewards
+        if len(ep_states) > 1:
+            np_states = np.array(ep_states)
+            np_actions = np.array(ep_actions)
+            np_rewards = np.array(ep_rewards)
+            self.buffer_full_ep_len[self.position_full_ep] = len(ep_states)
+            self.buffer_full_ep_states[self.position_full_ep, :, :] = np.zeros([self.max_seq_len, self.obs_dim], dtype=np.float32)
+            self.buffer_full_ep_actions[self.position_full_ep, :] = np.zeros([self.max_seq_len], dtype=np.int32)
+            self.buffer_full_ep_rewards[self.position_full_ep, :] = np.zeros([self.max_seq_len], dtype=np.float32)
+            self.buffer_full_ep_states[self.position_full_ep, :len(ep_states)] = np_states
+            self.buffer_full_ep_actions[self.position_full_ep, :len(ep_states)] = np_actions
+            self.buffer_full_ep_rewards[self.position_full_ep, :len(ep_states)] = np_rewards
 
-        self.position_full_ep = self.position_full_ep + 1
+            self.position_full_ep = self.position_full_ep + 1
 
-        if self.max_full_ep_size < self.position_full_ep:
-            self.max_full_ep_size = self.position_full_ep
+            if self.max_full_ep_size < self.position_full_ep:
+                self.max_full_ep_size = self.position_full_ep
 
         # assert False
 
@@ -243,7 +247,6 @@ class r2d2_ReplayMemory:
         idx = np.random.choice(self.max_full_ep_size, batch_size, replace=False)
 
         batch_lengths = self.buffer_full_ep_len[idx]
-        # print(batch_lengths)
 
         max_len = np.amax(batch_lengths)
 
