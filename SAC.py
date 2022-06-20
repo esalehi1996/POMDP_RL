@@ -617,8 +617,12 @@ class SAC(object):
             # print(type(batch_burn_in_len[zero_idx]))
             batch_burn_in_len[zero_idx] = 1
             # print(list(batch_burn_in_len))
-            with torch.no_grad():
-                _, hidden_burn_in = self.rho(batch_burn_in_hist, batch_size, batch_hidden, self.device , list(batch_burn_in_len))
+            if self.model_alg == 'AIS':
+                with torch.no_grad():
+                    _, hidden_burn_in = self.rho(batch_burn_in_hist, batch_size, batch_hidden, self.device , list(batch_burn_in_len))
+            else:
+                _, hidden_burn_in = self.rho(batch_burn_in_hist, batch_size, batch_hidden, self.device,
+                                             list(batch_burn_in_len))
 
             # print(hidden_burn_in[0].shape)
             #
