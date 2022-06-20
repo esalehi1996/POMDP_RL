@@ -162,7 +162,8 @@ class SAC(object):
                 eps_threshold = self.eps_greedy_parameters['EPS_END'] + (
                             self.eps_greedy_parameters['EPS_START'] - self.eps_greedy_parameters['EPS_END']) * \
                                 math.exp(-1. * self.env_steps / self.eps_greedy_parameters['EPS_DECAY'])
-                self.env_steps += 1
+                if evaluate is False:
+                    self.env_steps += 1
                 sample = random.random()
                 if sample < eps_threshold and evaluate is False:
                     return torch.tensor([[random.randrange(self.act_dim)]],dtype=torch.long).cpu().numpy()[0][0] , hidden_p
@@ -630,8 +631,8 @@ class SAC(object):
             batch_learn_hist = torch.from_numpy(batch_learn_hist).to(self.device)
             # self.critic.train()
             if self.model_alg == 'AIS':
-                # with torch.no_grad():
-                ais_z, hidden = self.rho(batch_learn_hist, batch_size, hidden_burn_in, self.device,
+                with torch.no_grad():
+                    ais_z, hidden = self.rho(batch_learn_hist, batch_size, hidden_burn_in, self.device,
                                                  list(batch_learn_forward_len))
 
             if self.model_alg == 'None':
