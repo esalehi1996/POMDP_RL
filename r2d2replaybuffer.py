@@ -51,6 +51,9 @@ class r2d2_ReplayMemory:
         #
         # print(len(ep_states), ep_states)
         # print(len(ep_actions), ep_actions)
+        # print(len(ep_rewards), ep_rewards)
+        for i in range(len(ep_states)):
+            print(i,ep_states[i],ep_actions[i],ep_rewards[i])
 
         ls_actions = [np.zeros(self.act_dim) for i in range(len(ep_actions))]
         # current_act_ls = [np.zeros(self.act_dim) for i in range(len(ep_actions))]
@@ -105,12 +108,13 @@ class r2d2_ReplayMemory:
         #     print(i,len(learning_act_list[i]))
         for i in range(len(hidden_list)):
             # print('-------------',i,'---------------')
+            # print(self.position_r2d2)
             # print(np.array(burn_in_act_list[i]).shape)
             # print(np.array(burn_in_obs_list[i]).shape)
             if np.array(burn_in_obs_list[i]).shape[0] != 0:
                 self.buffer_burn_in_history[self.position_r2d2, :len(burn_in_act_list[i]), :] = np.concatenate((np.array(burn_in_obs_list[i]), np.array(burn_in_act_list[i])), axis=1)
-                self.buffer_learning_history[self.position_r2d2, :len(learning_act_list[i]), :] = np.concatenate((np.array(learning_obs_list[i]), np.array(learning_act_list[i])), axis=1)
-            # print(self.buffer_learning_history[self.position_r2d2, :len(burn_in_act_list[i]), :])
+            self.buffer_learning_history[self.position_r2d2, :len(learning_act_list[i]), :] = np.concatenate((np.array(learning_obs_list[i]), np.array(learning_act_list[i])), axis=1)
+            # print(self.buffer_learning_history[self.position_r2d2, :len(learning_act_list[i]), :])
             # print(self.buffer_current_act[self.position_r2d2,:,:])
             self.buffer_hidden[0][self.position_r2d2, :] = hidden_list[i][0]
             self.buffer_hidden[1][self.position_r2d2, :] = hidden_list[i][1]
@@ -155,6 +159,14 @@ class r2d2_ReplayMemory:
         #     print(discounted_sum[i])
         #     print(ep_rewards[i*self.learning_obs_len:(i+1)*self.learning_obs_len])
 
+        # print('learning_history',self.buffer_learning_history[:2, :, :])
+        # print('burn_in_history',self.buffer_burn_in_history[:2, :, :])
+        # print('rewards',self.buffer_rewards[:self.position_r2d2,:])
+        # print('learning_length',self.buffer_learning_len[:self.position_r2d2])
+        # print('final_flag',self.buffer_final_flag[:self.position_r2d2,:])
+        # print('forward idx',self.buffer_forward_idx[:self.position_r2d2,:])
+        # print('current action',self.buffer_current_act[:self.position_r2d2,:])
+
 
 
 
@@ -176,7 +188,7 @@ class r2d2_ReplayMemory:
         if self.max_full_ep_size < self.position_full_ep:
             self.max_full_ep_size = self.position_full_ep
 
-        # assert False
+        assert False
 
         # print('b',self.buffer_states[self.position,:,:].shape,self.buffer_states[self.position,:,:])
 
