@@ -114,7 +114,10 @@ def run_exp(args):
                     # if episode_steps > 10:
                     action = env.action_space.sample()
                 else:
-                    action, hidden_p = sac.select_action(state, action, reward, hidden_p, start , evaluate = False)  # Sample action from policy
+                    EPS_up = False
+                    if i_episode >= args['start_updates_to_p_q_after']:
+                        EPS_up = True
+                    action, hidden_p = sac.select_action(state, action, reward, hidden_p, start , EPS_up , evaluate = False)  # Sample action from policy
                     # print(action)
                 if start == True:
                     start = False

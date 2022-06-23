@@ -132,7 +132,7 @@ class SAC(object):
 
 
 
-    def select_action(self, state, action, reward, hidden_p, start , evaluate):
+    def select_action(self, state, action, reward, hidden_p, start , EPS_up , evaluate):
         # print('**************start************')
         # print(start)
         # print('state',state)
@@ -162,7 +162,7 @@ class SAC(object):
                 eps_threshold = self.eps_greedy_parameters['EPS_END'] + (
                             self.eps_greedy_parameters['EPS_START'] - self.eps_greedy_parameters['EPS_END']) * \
                                 math.exp(-1. * self.env_steps / self.eps_greedy_parameters['EPS_DECAY'])
-                if evaluate is False:
+                if evaluate is False and EPS_up:
                     self.env_steps += 1
                 sample = random.random()
                 if sample < eps_threshold and evaluate is False:
