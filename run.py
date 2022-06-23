@@ -70,7 +70,6 @@ def run_exp(args):
     model_updates = 0
     k_episode = 0
     for i_episode in itertools.count(1):
-        k_episode += 1
         episode_reward = 0
         episode_steps = 0
         done = False
@@ -130,31 +129,82 @@ def run_exp(args):
             episode_reward = reward + episode_reward
 
             state = next_state
+            if total_numsteps % args['logging_freq'] == args['logging_freq']-1:
+                log_test_and_save(env, sac, writer, args, avg_reward, avg_q_loss, avg_p_loss, avg_model_loss, updates,
+                                  model_updates, k_episode, i_episode, total_numsteps, avg_episode_steps, state_size)
+                avg_reward = 0
+                avg_episode_steps = 0
+                avg_q_loss = 0
+                avg_p_loss = 0
+                avg_model_loss = 0
+                model_updates = 0
+                updates = 0
+                k_episode = 0
             if episode_steps >= max_env_steps:
                 break
         # print('gg')
         memory.push(ls_states, ls_actions, ls_rewards , ls_hiddens)  # Append transition to memory
+        k_episode += 1
         # print(ls_states,ls_actions,ls_rewards)
         ls_running_rewards.append(episode_reward)
         avg_reward = avg_reward + episode_reward
         avg_episode_steps = episode_steps + avg_episode_steps
-        # running_reward =  0.9 * running_reward + 0.1 * round(episode_reward, 2)
-        # if args.alg == 'SAC+AIS':
-        #     if len(memory) > args.batch_size and i_episode >= args.start_updates_to_model_after:
-        #         model_loss = sac.update_model(memory, args.batch_size, args.model_updates_per_step)
-        #         avg_model_loss += model_loss
-        #         model_updates += 1
-        # if len(memory) > args.batch_size and i_episode >= args.start_updates_to_p_q_after:
-        #     critic_loss, policy_loss = sac.update_parameters(memory, args.batch_size, args.p_q_updates_per_step)
-        #     updates += 1
-        #     avg_p_loss += policy_loss
-        #     avg_q_loss += critic_loss
+
         if total_numsteps > args['num_steps']:
             break
 
-        # writer.add_scalar('reward/train', episode_reward, i_episode)
-        # if k_episode >= 50 :
-        #     if args['model_alg'] == 'AIS' and args['rl_alg'] == 'SAC':
+
+        # if k_steps >= args['logging_freq']:
+        #     sac.save_model(args['logdir'])
+        #     avg_running_reward = avg_reward/k_episode
+        #     k_steps = 0
+        #     avg_reward = 0.
+        #     avg_discount_adj_reward = 0.
+        #     episodes = 10
+        #
+        #     if not args['only_train_model']:
+        #         for _  in range(episodes):
+        #             start = True
+        #             hidden_p = None
+        #             action = 0
+        #             reward = 0
+        #             state = env.reset()
+        #             episode_reward = 0
+        #             episode_rewards = []
+        #             done = False
+        #             steps = 0
+        #             while not done:
+        #                 if args['env_name'][:8] == 'MiniGrid':
+        #                     state = state['image']
+        #                     state = sac.get_encoded_obs(state)
+        #                 else:
+        #                     state = convert_int_to_onehot(state, state_size)
+        #                 steps += 1
+        #                 action, hidden_p = sac.select_action(state, action, reward, hidden_p, start , evaluate=True)
+        #                 # action = env.action_space.sample()
+        #                 next_state, reward, done, _ = env.step(action)
+        #                 episode_rewards.append(reward)
+        #                 episode_reward += reward
+        #
+        #                 state = next_state
+        #                 if start == True:
+        #                     start = False
+        #                 if steps >= max_env_steps:
+        #                     break
+        #             avg_reward += episode_reward
+        #             rets = []
+        #             R = 0
+        #             for i, r in enumerate(episode_rewards[::-1]):
+        #                 R = r + args['gamma'] * R
+        #                 rets.insert(0, R)
+        #             avg_discount_adj_reward += rets[0]
+        #     avg_reward /= episodes
+        #     avg_discount_adj_reward /= episodes
+        #
+        # # writer.add_scalar('avg_reward/test', avg_reward, i_episode)
+        #
+        #     print("----------------------------------------")
+        #     if args['model_alg'] == 'AIS':
         #         if updates == 0:
         #             avgql = 0
         #             avgpl = 0
@@ -165,21 +215,29 @@ def run_exp(args):
         #             avgml = 0
         #         else:
         #             avgml = avg_model_loss / (model_updates)
-        #         print(
-        #             "Episode: {}, episode steps: {}, avg_reward: {}, avg_q_loss: {}, avg_p_loss: {} , avg_model_loss: {}".format(
-        #                 i_episode, avg_episode_steps / k_episode, avg_reward / k_episode, avgql, avgpl, avgml))
-        #     if args['model_alg'] == 'none' and args['rl_alg'] == 'SAC':
+        #         print("Episode: {}, Total_num_steps: {},  episode steps: {}, avg_train_reward: {}, avg_test_reward: {}, avg_test_discount_adjusted_reward: {}, avg_q_loss: {}, avg_p_loss: {} , avg_model_loss: {}".format(
+        #                 i_episode,total_numsteps , avg_episode_steps / k_episode, avg_running_reward, avg_reward, avg_discount_adj_reward,avgql, avgpl, avgml))
+        #     if args['model_alg'] == 'None':
         #         if updates == 0:
         #             avgql = 0
         #             avgpl = 0
         #         else:
         #             avgql = avg_q_loss / updates
         #             avgpl = avg_p_loss / updates
-        #         print("Episode: {}, episode steps: {}, avg_reward: {}, avg_q_loss: {}, avg_p_loss: {}".format(i_episode,
-        #                                                                                                       avg_episode_steps / k_episode,
-        #                                                                                                       avg_reward / k_episode,
+        #         print("Episode: {}, Total_num_steps: {}, episode steps: {}, avg_train_reward: {}, avg_test_reward: {}, avg_test_discount_adjusted_reward: {}, avg_q_loss: {}, avg_p_loss: {}".format(i_episode, total_numsteps ,
+        #                                                                                                       avg_episode_steps / k_episode, avg_running_reward ,
+        #                                                                                                       avg_reward, avg_discount_adj_reward ,
         #                                                                                                       avgql, avgpl))
-        #     # print("Episode: {}, episode steps: {}, avg_reward: {}".format(i_episode,avg_episode_steps/k_episode, avg_reward/k_episode))
+        #
+        #
+        #     writer.add_scalar('Seed'+str(seed)+'/Evaluation reward', avg_reward , total_numsteps)
+        #     writer.add_scalar('Seed'+str(seed)+'/Discount adjusted Evaluation reward', avg_discount_adj_reward, total_numsteps)
+        #     writer.add_scalar('Seed'+str(seed)+'/Training reward', avg_running_reward, total_numsteps)
+        #     writer.add_scalar('Seed'+str(seed)+'/Average Steps for each episode', avg_episode_steps , total_numsteps)
+        #     writer.add_scalar('Seed'+str(seed)+'/Loss/Policy', avgpl, total_numsteps)
+        #     writer.add_scalar('Loss/Value', avgql, total_numsteps)
+        #     if args['model_alg'] == 'AIS':
+        #         writer.add_scalar('Loss/Model', avgml, total_numsteps)
         #     k_episode = 0
         #     avg_reward = 0
         #     avg_episode_steps = 0
@@ -188,104 +246,107 @@ def run_exp(args):
         #     model_updates = 0
         #     avg_model_loss = 0
         #     updates = 0
-
-
-
-        if k_steps >= args['logging_freq']:
-            sac.save_model(args['logdir'])
-            avg_running_reward = avg_reward/k_episode
-            k_steps = 0
-            avg_reward = 0.
-            avg_discount_adj_reward = 0.
-            episodes = 10
-
-            if not args['only_train_model']:
-                for _  in range(episodes):
-                    start = True
-                    hidden_p = None
-                    action = 0
-                    reward = 0
-                    state = env.reset()
-                    episode_reward = 0
-                    episode_rewards = []
-                    done = False
-                    steps = 0
-                    while not done:
-                        if args['env_name'][:8] == 'MiniGrid':
-                            state = state['image']
-                            state = sac.get_encoded_obs(state)
-                        else:
-                            state = convert_int_to_onehot(state, state_size)
-                        steps += 1
-                        action, hidden_p = sac.select_action(state, action, reward, hidden_p, start , evaluate=True)
-                        # action = env.action_space.sample()
-                        next_state, reward, done, _ = env.step(action)
-                        episode_rewards.append(reward)
-                        episode_reward += reward
-
-                        state = next_state
-                        if start == True:
-                            start = False
-                        if steps >= max_env_steps:
-                            break
-                    avg_reward += episode_reward
-                    rets = []
-                    R = 0
-                    for i, r in enumerate(episode_rewards[::-1]):
-                        R = r + args['gamma'] * R
-                        rets.insert(0, R)
-                    avg_discount_adj_reward += rets[0]
-            avg_reward /= episodes
-            avg_discount_adj_reward /= episodes
-
-        # writer.add_scalar('avg_reward/test', avg_reward, i_episode)
-
-            print("----------------------------------------")
-            if args['model_alg'] == 'AIS':
-                if updates == 0:
-                    avgql = 0
-                    avgpl = 0
-                else:
-                    avgql = avg_q_loss / (updates)
-                    avgpl = avg_p_loss / (updates)
-                if model_updates == 0:
-                    avgml = 0
-                else:
-                    avgml = avg_model_loss / (model_updates)
-                print("Episode: {}, Total_num_steps: {},  episode steps: {}, avg_train_reward: {}, avg_test_reward: {}, avg_test_discount_adjusted_reward: {}, avg_q_loss: {}, avg_p_loss: {} , avg_model_loss: {}".format(
-                        i_episode,total_numsteps , avg_episode_steps / k_episode, avg_running_reward, avg_reward, avg_discount_adj_reward,avgql, avgpl, avgml))
-            if args['model_alg'] == 'None':
-                if updates == 0:
-                    avgql = 0
-                    avgpl = 0
-                else:
-                    avgql = avg_q_loss / updates
-                    avgpl = avg_p_loss / updates
-                print("Episode: {}, Total_num_steps: {}, episode steps: {}, avg_train_reward: {}, avg_test_reward: {}, avg_test_discount_adjusted_reward: {}, avg_q_loss: {}, avg_p_loss: {}".format(i_episode, total_numsteps ,
-                                                                                                              avg_episode_steps / k_episode, avg_running_reward ,
-                                                                                                              avg_reward, avg_discount_adj_reward ,
-                                                                                                              avgql, avgpl))
-
-
-            writer.add_scalar('Evaluation reward', avg_reward , total_numsteps)
-            writer.add_scalar('Discount adjusted Evaluation reward', avg_discount_adj_reward, total_numsteps)
-            writer.add_scalar('Training reward', avg_running_reward, total_numsteps)
-            writer.add_scalar('Average Steps for each episode', avg_episode_steps , total_numsteps)
-            writer.add_scalar('Loss/Policy', avgpl, total_numsteps)
-            writer.add_scalar('Loss/Value', avgql, total_numsteps)
-            if args['model_alg'] == 'AIS':
-                writer.add_scalar('Loss/Model', avgml, total_numsteps)
-            k_episode = 0
-            avg_reward = 0
-            avg_episode_steps = 0
-            avg_p_loss = 0
-            avg_q_loss = 0
-            model_updates = 0
-            avg_model_loss = 0
-            updates = 0
-            print("----------------------------------------")
-            writer.flush()
+        #     print("----------------------------------------")
+        #     writer.flush()
 
 
     env.close()
     writer.close()
+
+
+def log_test_and_save(env , sac , writer , args , avg_reward , avg_q_loss , avg_p_loss , avg_model_loss , updates , model_updates , k_episode , i_episode , total_numsteps , avg_episode_steps , state_size ):
+    sac.save_model(args['logdir'])
+    avg_running_reward = avg_reward / k_episode
+    avg_reward = 0.
+    avg_discount_adj_reward = 0.
+    episodes = 10
+
+    if not args['only_train_model']:
+        for _ in range(episodes):
+            start = True
+            hidden_p = None
+            action = 0
+            reward = 0
+            state = env.reset()
+            episode_reward = 0
+            episode_rewards = []
+            done = False
+            steps = 0
+            while not done:
+                if args['env_name'][:8] == 'MiniGrid':
+                    state = state['image']
+                    state = sac.get_encoded_obs(state)
+                else:
+                    state = convert_int_to_onehot(state, state_size)
+                steps += 1
+                action, hidden_p = sac.select_action(state, action, reward, hidden_p, start, evaluate=True)
+                # action = env.action_space.sample()
+                next_state, reward, done, _ = env.step(action)
+                episode_rewards.append(reward)
+                episode_reward += reward
+
+                state = next_state
+                if start == True:
+                    start = False
+                if steps >= args['max_env_steps']:
+                    break
+            avg_reward += episode_reward
+            rets = []
+            R = 0
+            for i, r in enumerate(episode_rewards[::-1]):
+                R = r + args['gamma'] * R
+                rets.insert(0, R)
+            avg_discount_adj_reward += rets[0]
+    avg_reward /= episodes
+    avg_discount_adj_reward /= episodes
+
+    # writer.add_scalar('avg_reward/test', avg_reward, i_episode)
+
+    print("----------------------------------------")
+    if args['model_alg'] == 'AIS':
+        if updates == 0:
+            avgql = 0
+            avgpl = 0
+        else:
+            avgql = avg_q_loss / (updates)
+            avgpl = avg_p_loss / (updates)
+        if model_updates == 0:
+            avgml = 0
+        else:
+            avgml = avg_model_loss / (model_updates)
+        print(
+            "Episode: {}, Total_num_steps: {},  episode steps: {}, avg_train_reward: {}, avg_test_reward: {}, avg_test_discount_adjusted_reward: {}, avg_q_loss: {}, avg_p_loss: {} , avg_model_loss: {}".format(
+                i_episode, total_numsteps, avg_episode_steps / k_episode, avg_running_reward, avg_reward,
+                avg_discount_adj_reward, avgql, avgpl, avgml))
+    if args['model_alg'] == 'None':
+        if updates == 0:
+            avgql = 0
+            avgpl = 0
+        else:
+            avgql = avg_q_loss / updates
+            avgpl = avg_p_loss / updates
+        print(
+            "Episode: {}, Total_num_steps: {}, episode steps: {}, avg_train_reward: {}, avg_test_reward: {}, avg_test_discount_adjusted_reward: {}, avg_q_loss: {}, avg_p_loss: {}".format(
+                i_episode, total_numsteps,
+                avg_episode_steps / k_episode, avg_running_reward,
+                avg_reward, avg_discount_adj_reward,
+                avgql, avgpl))
+
+    writer.add_scalar('Evaluation reward', avg_reward, total_numsteps)
+    writer.add_scalar('Discount adjusted Evaluation reward', avg_discount_adj_reward, total_numsteps)
+    writer.add_scalar('Training reward', avg_running_reward, total_numsteps)
+    writer.add_scalar('Average Steps for each episode', avg_episode_steps, total_numsteps)
+    writer.add_scalar('Loss/Policy', avgpl, total_numsteps)
+    writer.add_scalar('Loss/Value', avgql, total_numsteps)
+    if args['model_alg'] == 'AIS':
+        writer.add_scalar('Loss/Model', avgml, total_numsteps)
+    k_episode = 0
+    avg_reward = 0
+    avg_episode_steps = 0
+    avg_p_loss = 0
+    avg_q_loss = 0
+    model_updates = 0
+    avg_model_loss = 0
+    updates = 0
+    print("----------------------------------------")
+    writer.flush()

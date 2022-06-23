@@ -283,8 +283,8 @@ class SAC(object):
             # print(torch.sign(packed_batch_rewards.data)*torch.pow(torch.abs(packed_batch_rewards.data),0.5)/5)
             # assert False
 
-            # reward_loss = F.mse_loss(reward_est.view(-1), packed_batch_rewards.data)
-            reward_loss = F.mse_loss(reward_est.view(-1), torch.sign(packed_batch_rewards.data)*torch.pow(torch.abs(packed_batch_rewards.data),0.5)/5)
+            reward_loss = F.mse_loss(reward_est.view(-1), packed_batch_rewards.data)
+            # reward_loss = F.mse_loss(reward_est.view(-1), torch.sign(packed_batch_rewards.data)*torch.pow(torch.abs(packed_batch_rewards.data),0.5)/5)
 
             # print(reward_loss)
 
