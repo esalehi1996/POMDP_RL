@@ -223,7 +223,7 @@ def log_test_and_save(env , sac , writer , args , avg_reward , avg_q_loss , avg_
                 else:
                     state = convert_int_to_onehot(state, state_size)
                 steps += 1
-                action, hidden_p = sac.select_action(state, action, reward, hidden_p, start, evaluate=True)
+                action, hidden_p = sac.select_action(state, action, reward, hidden_p, start,False, evaluate=True)
                 # action = env.action_space.sample()
                 next_state, reward, done, _ = env.step(action)
                 episode_rewards.append(reward)
