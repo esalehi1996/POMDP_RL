@@ -905,9 +905,9 @@ class SAC(object):
         return qf_losses.item(), policy_losses.item()
 
 
-    def save_model(self , dir):
+    def save_model(self , dir , seed):
         import os
-        path = os.path.join(dir, 'models.pt')
+        path = os.path.join(dir, 'Seed_'+str(seed)+'_models.pt')
 
         torch.save({
             'AIS_rho' : self.rho.state_dict(),

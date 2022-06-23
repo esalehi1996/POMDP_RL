@@ -10,10 +10,9 @@ from run import *
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument('--seed' ,type=int, default=1)
+    parser.add_argument('--num_seeds' ,type=int, default=5)
     parser.add_argument('--exp_name', type=str)
     parser.add_argument('--env_name', type=str)
-    parser.add_argument('--num_seeds', type=int, default=1)
     parser.add_argument('--batch_size', type=int, default=32)
     parser.add_argument('--hidden_size', type=int, default=16)
     parser.add_argument('--gamma', type=float, default=0.99)
