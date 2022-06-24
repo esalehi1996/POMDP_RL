@@ -189,8 +189,8 @@ def run_exp(args):
         arr_r[i,:] = np.array(list_of_test_rewards_allseeds[i])
         arr_d_r[i,:] = np.array(list_of_discount_test_rewards_allseeds[i])
 
-    np.save(args['logdir']+'/arr_r',arr_r)
-    np.save(args['logdir'] + '/arr_d_r', arr_d_r)
+    np.save(args['logdir']+'/'+args['exp_name']+'_arr_r',arr_r)
+    np.save(args['logdir'] + '/'+args['exp_name']+'_arr_d_r', arr_d_r)
     # print(arr_r)
     # print(arr_d_r)
 
