@@ -625,8 +625,8 @@ class SAC(object):
                 with torch.no_grad():
                     _, hidden_burn_in = self.rho(batch_burn_in_hist, batch_size, batch_hidden, self.device , list(batch_burn_in_len))
             else:
-                with torch.no_grad():
-                    _, hidden_burn_in = self.rho(batch_burn_in_hist, batch_size, batch_hidden, self.device,
+                # with torch.no_grad():
+                _, hidden_burn_in = self.rho(batch_burn_in_hist, batch_size, batch_hidden, self.device,
                                              list(batch_burn_in_len))
 
             # print(hidden_burn_in[0].shape)
