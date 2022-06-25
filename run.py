@@ -44,6 +44,19 @@ def run_exp(args):
         env = gym.make(args['env_name'])
         max_env_steps = 400
     args['max_env_steps'] = max_env_steps
+    sac = SAC(env, args)
+    if args['env_name'][:8] == 'MiniGrid':
+        state_size = sac.get_obs_dim()
+        print(env.action_space, state_size)
+    else:
+        state_size = env.observation_space.n
+        print(env.action_space, state_size)
+    if args['replay_type'] == 'vanilla':
+        memory = Rec_ReplayMemory(args['replay_size'], state_size, env.action_space.n, 1000)
+        print('vanilla')
+    if args['replay_type'] == 'r2d2':
+        memory = r2d2_ReplayMemory(args['replay_size'], state_size, env.action_space.n, 1000, args)
+        print('r2d2')
     for seed in range(args['num_seeds']):
         list_of_test_rewards = []
         list_of_discount_test_rewards = []
@@ -58,19 +71,7 @@ def run_exp(args):
         if args['load_from_path'] != 'None':
             print('---------------  Loading Model from path:' , args['load_from_path'] , '-----------------')
             sac.load_model(args['load_from_path'])
-
-        if args['env_name'][:8] == 'MiniGrid':
-            state_size = sac.get_obs_dim()
-            print(env.action_space, state_size)
-        else:
-            state_size = env.observation_space.n
-            print(env.action_space, state_size)
-        if args['replay_type'] == 'vanilla':
-            memory = Rec_ReplayMemory(args['replay_size'], state_size, env.action_space.n, 1000, seed)
-            print('vanilla')
-        if args['replay_type'] == 'r2d2':
-            memory = r2d2_ReplayMemory(args['replay_size'], state_size, env.action_space.n, 1000 , args , seed)
-            print('r2d2')
+        memory.reset(seed)
 
         ls_running_rewards = []
         avg_reward = 0
