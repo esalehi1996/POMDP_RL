@@ -42,25 +42,6 @@ class r2d2_ReplayMemory:
 
     def reset(self,seed):
         random.seed(seed)
-        self.buffer_burn_in_history = np.zeros([self.capacity, self.burn_in_len, self.obs_dim + self.act_dim],
-                                               dtype=np.float32)
-        self.buffer_learning_history = np.zeros(
-            [self.capacity, self.learning_obs_len + self.forward_len, self.obs_dim + self.act_dim], dtype=np.float32)
-        self.buffer_current_act = np.zeros([self.capacity, self.learning_obs_len], dtype=np.int32)
-        # self.buffer_burn_in_actions = np.zeros([self.capacity, self.burn_in_len , self.act_dim], dtype=np.float32)
-        # self.buffer_learning_actions = np.zeros([self.capacity, self.learning_obs_len + self.forward_len, self.act_dim], dtype=np.float32)
-        self.buffer_rewards = np.zeros([self.capacity, self.learning_obs_len], dtype=np.float32)
-        self.buffer_burn_in_len = np.zeros([self.capacity], dtype=np.int32)
-        self.buffer_forward_idx = np.zeros([self.capacity, self.learning_obs_len], dtype=np.int32)
-        self.buffer_final_flag = np.zeros([self.capacity, self.learning_obs_len], dtype=np.int32)
-        self.buffer_learning_len = np.zeros([self.capacity], dtype=np.int32)
-        self.buffer_learn_forward_len = np.zeros([self.capacity], dtype=np.int32)
-        self.buffer_hidden = (
-        torch.zeros(self.capacity, self.AIS_state_size), torch.zeros(self.capacity, self.AIS_state_size))
-        self.buffer_full_ep_states = np.zeros([self.capacity, self.max_seq_len, self.obs_dim], dtype=np.float32)
-        self.buffer_full_ep_actions = np.zeros([self.capacity, self.max_seq_len], dtype=np.int32)
-        self.buffer_full_ep_rewards = np.zeros([self.capacity, self.max_seq_len], dtype=np.float32)
-        self.buffer_full_ep_len = np.zeros([self.capacity], dtype=np.int32)
 
         self.position_r2d2 = 0
         self.position_full_ep = 0
