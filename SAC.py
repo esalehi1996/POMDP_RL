@@ -691,7 +691,7 @@ class SAC(object):
                 ais_z_target = unpacked_ais_z.gather(1, batch_forward_idx.view(batch_size, -1, 1).expand(-1, -1,
                                                                                                               self.AIS_state_size).long()).detach()
                 print(ais_z_target.shape,ais_z_target)
-                print(list(batch_learn_len),)
+                print(list(batch_learn_len))
                 packed_target_ais = pack_padded_sequence(ais_z_target, list(batch_learn_len), batch_first=True,
                                            enforce_sorted=False)
 
