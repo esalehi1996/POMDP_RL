@@ -70,6 +70,7 @@ class r2d2_ReplayMemory:
         # current_act_ls = [np.zeros(self.act_dim) for i in range(len(ep_actions))]
         for i in range(len(ep_actions)-1):
             ls_actions[i+1][ep_actions[i]] = 1
+        # print(ls_actions)
         # for i in range(len(ep_actions)):
         #     current_act_ls[i][ep_actions[i]] = 1
 
@@ -79,6 +80,9 @@ class r2d2_ReplayMemory:
 
         burn_in_act_list = [ls_actions[max(0,x-self.burn_in_len):x] for x in range(0, len(ep_states), self.learning_obs_len)]
         learning_act_list = [ls_actions[x:x + self.learning_obs_len + self.forward_len] for x in range(0, len(ep_states), self.learning_obs_len)]
+
+        # print(burn_in_act_list)
+        # print(learning_act_list)
         # forward_act_list = [ls_actions[x + self.forward_len:x + self.forward_len + self.learning_obs_len] for x in range(0, len(ep_states), self.learning_obs_len)]
 
         # for i, hidden in enumerate(burn_in_act_list):
@@ -115,6 +119,7 @@ class r2d2_ReplayMemory:
 
 
         discounted_sum = [[sum_rewards(ep_rewards[x+y:x+y+self.forward_len],self.gamma) for y in range(0,min(self.learning_obs_len, len(ep_states)-x))] for x in range(0, len(ep_states) , self.learning_obs_len)]
+        # print(discounted_sum)
         # for i in range(len(hidden_list)):
         #     print(i,len(learning_act_list[i]))
         for i in range(len(hidden_list)):
@@ -131,7 +136,7 @@ class r2d2_ReplayMemory:
             self.buffer_hidden[1][self.position_r2d2, :] = hidden_list[i][1]
             # print(self.buffer_hidden[0][self.position_r2d2, :],self.buffer_hidden[1][self.position_r2d2, :])
             self.buffer_rewards[self.position_r2d2,:len(discounted_sum[i])] = np.array(discounted_sum[i])
-            # print(self.buffer_rewards[self.position_r2d2,:len(discounted_sum[i])],ep_rewards[i*self.learning_obs_len:(i+1)*self.learning_obs_len])
+            # print(self.buffer_rewards[self.position_r2d2,:len(discounted_sum[i])])
             self.buffer_burn_in_len[self.position_r2d2] = len(burn_in_obs_list[i])
             # print(self.buffer_burn_in_len[self.position_r2d2])
             self.buffer_learning_len[self.position_r2d2] = len(discounted_sum[i])

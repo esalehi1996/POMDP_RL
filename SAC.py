@@ -635,6 +635,10 @@ class SAC(object):
             #
             hidden_burn_in[0][:,zero_idx,:] = batch_hidden[0][:,zero_idx,:]
             hidden_burn_in[1][:, zero_idx, :] = batch_hidden[1][:, zero_idx, :]
+            # print(hidden_burn_in)
+            # print(list(batch_learn_forward_len))
+
+
             #
             # print(hidden_burn_in[0][:, zero_idx, :], hidden_burn_in[1][:, zero_idx, :])
             batch_learn_hist = torch.from_numpy(batch_learn_hist).to(self.device)
@@ -662,25 +666,31 @@ class SAC(object):
 
             # print('qzdata',q_z.data.requires_grad)
 
+
             qf = self.critic(q_z.data)
 
-            # print(qf.data.shape)
+            # print(qf.shape)
             # print(qf)
 
             batch_current_act = torch.from_numpy(batch_current_act).to(self.device)
 
-            # print(batch_current_act.shape)
+            # print(batch_current_act)
 
             packed_current_act = pack_padded_sequence(batch_current_act, list(batch_learn_len), batch_first=True,enforce_sorted=False)
+
 
             # print(packed_current_act.data)
 
             qf = qf.gather(1, packed_current_act.data.view(-1,1).long())
 
+            # print(qf)
+
             # print(qf.shape)
             # print(lens_unpacked)
-            # print(unpacked_ais_z.shape)
-            # print(batch_forward_idx.shape)
+            # print('gggggggggggg')
+            # print(list(batch_learn_len))
+            # print(unpacked_ais_z.shape , unpacked_ais_z)
+            # print(batch_forward_idx.shape , batch_forward_idx)
 
             # print(batch_forward_idx.view(batch_size,-1, 1).expand(-1,-1,self.AIS_state_size))
 
@@ -688,14 +698,23 @@ class SAC(object):
 
             with torch.no_grad():
                 batch_forward_idx = torch.from_numpy(batch_forward_idx).to(self.device)
-                ais_z_target = unpacked_ais_z.gather(1, batch_forward_idx.view(batch_size, -1, 1).expand(-1, -1,
+                packed_batch_forward_idx = pack_padded_sequence(batch_forward_idx, list(batch_learn_len), batch_first=True, enforce_sorted=False)
+                unpacked_batch_forward_idx , _ = pad_packed_sequence(packed_batch_forward_idx, batch_first=True)
+                # print(batch_forward_idx)
+                # print(unpacked_batch_forward_idx)
+                # print(unpacked_ais_z.shape,unpacked_ais_z)
+
+
+                ais_z_target = unpacked_ais_z.gather(1, unpacked_batch_forward_idx.view(batch_size, -1, 1).expand(-1, -1,
                                                                                                               self.AIS_state_size).long()).detach()
-                print(ais_z_target.shape,ais_z_target)
-                print(list(batch_learn_len))
+                # print(ais_z_target.shape,ais_z_target)
+                # print(ais_z_target.shape,ais_z_target)
+                # print(list(batch_learn_len))
                 packed_target_ais = pack_padded_sequence(ais_z_target, list(batch_learn_len), batch_first=True,
                                            enforce_sorted=False)
 
                 qf_target = self.critic_target(packed_target_ais.data)
+                # print(qf_target.shape)
                 # qf_target = self.critic_target(packed_target_ais.data).max(1)[0]
                 # print(qf_target.shape)
                 # assert False
@@ -730,6 +749,7 @@ class SAC(object):
 
 
                 # print(next_q_value.shape)
+                # assert False
 
 
             # print(qf.shape)
