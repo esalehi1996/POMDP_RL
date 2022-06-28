@@ -28,11 +28,11 @@ class r2d2_ReplayMemory:
         self.buffer_final_flag = np.zeros([self.capacity, self.learning_obs_len], dtype=np.int32)
         self.buffer_learning_len = np.zeros([self.capacity], dtype=np.int32)
         self.buffer_learn_forward_len = np.zeros([self.capacity], dtype=np.int32)
-        self.buffer_hidden = (torch.zeros(self.capacity , self.AIS_state_size) , torch.zeros(self.capacity , self.AIS_state_size))
-        self.buffer_full_ep_states = np.zeros([self.capacity, self.max_seq_len , self.obs_dim], dtype=np.float32)
-        self.buffer_full_ep_actions = np.zeros([self.capacity, self.max_seq_len], dtype=np.int32)
-        self.buffer_full_ep_rewards = np.zeros([self.capacity, self.max_seq_len], dtype=np.float32)
-        self.buffer_full_ep_len = np.zeros([self.capacity], dtype=np.int32)
+        self.buffer_hidden = (torch.zeros(self.capacity//2 , self.AIS_state_size) , torch.zeros(self.capacity , self.AIS_state_size))
+        self.buffer_full_ep_states = np.zeros([self.capacity//2, self.max_seq_len , self.obs_dim], dtype=np.float32)
+        self.buffer_full_ep_actions = np.zeros([self.capacity//2, self.max_seq_len], dtype=np.int32)
+        self.buffer_full_ep_rewards = np.zeros([self.capacity//2, self.max_seq_len], dtype=np.float32)
+        self.buffer_full_ep_len = np.zeros([self.capacity//2], dtype=np.int32)
 
         self.position_r2d2 = 0
         self.position_full_ep = 0
