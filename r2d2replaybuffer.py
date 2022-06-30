@@ -6,7 +6,7 @@ import torch.nn.functional as F
 
 
 class r2d2_ReplayMemory:
-    def __init__(self, capacity, obs_dim, act_dim, max_sequence_length , args ):
+    def __init__(self, capacity, obs_dim, act_dim, max_sequence_length, args):
         self.capacity = capacity
         self.max_seq_len = max_sequence_length
         self.obs_dim = obs_dim
@@ -20,6 +20,8 @@ class r2d2_ReplayMemory:
         self.buffer_burn_in_history = np.zeros([self.capacity, self.burn_in_len , self.obs_dim + self.act_dim], dtype=np.float32)
         self.buffer_learning_history = np.zeros([self.capacity, self.learning_obs_len + self.forward_len, self.obs_dim + self.act_dim], dtype=np.float32)
         self.buffer_current_act = np.zeros([self.capacity, self.learning_obs_len], dtype=np.int32)
+        self.buffer_next_obs = np.zeros([self.capacity, self.learning_obs_len + self.forward_len, self.obs_dim], dtype=np.float32)
+        self.buffer_model_input_act = np.zeros([self.capacity, self.learning_obs_len + self.forward_len, self.act_dim], dtype=np.float32)
         # self.buffer_burn_in_actions = np.zeros([self.capacity, self.burn_in_len , self.act_dim], dtype=np.float32)
         # self.buffer_learning_actions = np.zeros([self.capacity, self.learning_obs_len + self.forward_len, self.act_dim], dtype=np.float32)
         self.buffer_rewards = np.zeros([self.capacity, self.learning_obs_len], dtype=np.float32)
@@ -29,23 +31,23 @@ class r2d2_ReplayMemory:
         self.buffer_learning_len = np.zeros([self.capacity], dtype=np.int32)
         self.buffer_learn_forward_len = np.zeros([self.capacity], dtype=np.int32)
         self.buffer_hidden = (torch.zeros(self.capacity , self.AIS_state_size) , torch.zeros(self.capacity , self.AIS_state_size))
-        self.buffer_full_ep_states = np.zeros([self.capacity, self.max_seq_len , self.obs_dim], dtype=np.float32)
-        self.buffer_full_ep_actions = np.zeros([self.capacity, self.max_seq_len], dtype=np.int32)
-        self.buffer_full_ep_rewards = np.zeros([self.capacity, self.max_seq_len], dtype=np.float32)
-        self.buffer_full_ep_len = np.zeros([self.capacity], dtype=np.int32)
+        # self.buffer_full_ep_states = np.zeros([self.capacity, self.max_seq_len , self.obs_dim], dtype=np.float32)
+        # self.buffer_full_ep_actions = np.zeros([self.capacity, self.max_seq_len], dtype=np.int32)
+        # self.buffer_full_ep_rewards = np.zeros([self.capacity, self.max_seq_len], dtype=np.float32)
+        # self.buffer_full_ep_len = np.zeros([self.capacity], dtype=np.int32)
 
         self.position_r2d2 = 0
-        self.position_full_ep = 0
-        self.max_full_ep_size = 0
+        # self.position_full_ep = 0
+        # self.max_full_ep_size = 0
 
         self.full = False
 
-    def reset(self,seed):
+    def reset(self, seed):
         random.seed(seed)
 
         self.position_r2d2 = 0
-        self.position_full_ep = 0
-        self.max_full_ep_size = 0
+        # self.position_full_ep = 0
+        # self.max_full_ep_size = 0
 
         self.full = False
 
@@ -67,9 +69,12 @@ class r2d2_ReplayMemory:
         #     print(i,ep_states[i],ep_actions[i],ep_rewards[i])
 
         ls_actions = [np.zeros(self.act_dim) for i in range(len(ep_actions))]
+        ls_actions_ = [np.zeros(self.act_dim) for i in range(len(ep_actions))]
         # current_act_ls = [np.zeros(self.act_dim) for i in range(len(ep_actions))]
         for i in range(len(ep_actions)-1):
             ls_actions[i+1][ep_actions[i]] = 1
+        for i in range(len(ep_actions)):
+            ls_actions_[i][ep_actions[i]] = 1
         # print(ls_actions)
         # for i in range(len(ep_actions)):
         #     current_act_ls[i][ep_actions[i]] = 1
@@ -89,6 +94,8 @@ class r2d2_ReplayMemory:
         #     print(i,len(hidden),hidden)
 
         current_act_list = [ep_actions[x:x + self.learning_obs_len] for x in range(0, len(ep_states), self.learning_obs_len)]
+        next_obs_list = [ep_states[x+1:x + 1 + self.learning_obs_len + self.forward_len] for x in range(0, len(ep_states), self.learning_obs_len)]
+        model_input_act_list = [ls_actions_[x:x + self.learning_obs_len + self.forward_len] for x in range(0, len(ep_states), self.learning_obs_len)]
 
 
 
@@ -141,7 +148,12 @@ class r2d2_ReplayMemory:
             # print(self.buffer_burn_in_len[self.position_r2d2])
             self.buffer_learning_len[self.position_r2d2] = len(discounted_sum[i])
             self.buffer_learn_forward_len[self.position_r2d2] = len(learning_act_list[i])
-            self.buffer_current_act[self.position_r2d2, :len(discounted_sum[i])] = np.array(current_act_list[i])
+            if np.array(next_obs_list[i]).shape[0] != 0:
+                self.buffer_next_obs[self.position_r2d2,:len(next_obs_list[i]) , :] = np.array(next_obs_list[i])
+            self.buffer_current_act[self.position_r2d2, :len(current_act_list[i])] = np.array(current_act_list[i])
+            self.buffer_model_input_act[self.position_r2d2,:len(model_input_act_list[i]),:] = np.array(model_input_act_list[i])
+            # print(self.buffer_next_obs[self.position_r2d2,: , :])
+            # print(self.buffer_model_input_act[self.position_r2d2, :])
             # print(self.buffer_learning_len[self.position_r2d2])
             self.buffer_forward_idx[self.position_r2d2,:len(discounted_sum[i])] = np.array([min(j+self.forward_len,len(learning_obs_list[i])-1) for j in range(len(discounted_sum[i]))])
             self.buffer_final_flag[self.position_r2d2,:len(discounted_sum[i])] = np.array([int(i*self.learning_obs_len + self.forward_len + j < len(ep_states)) for j in range(len(discounted_sum[i]))])
@@ -186,24 +198,25 @@ class r2d2_ReplayMemory:
 
 
 
+
         # print(sum_rewards(ls,gamma))
 
-        if len(ep_states) > 1:
-            np_states = np.array(ep_states)
-            np_actions = np.array(ep_actions)
-            np_rewards = np.array(ep_rewards)
-            self.buffer_full_ep_len[self.position_full_ep] = len(ep_states)
-            self.buffer_full_ep_states[self.position_full_ep, :, :] = np.zeros([self.max_seq_len, self.obs_dim], dtype=np.float32)
-            self.buffer_full_ep_actions[self.position_full_ep, :] = np.zeros([self.max_seq_len], dtype=np.int32)
-            self.buffer_full_ep_rewards[self.position_full_ep, :] = np.zeros([self.max_seq_len], dtype=np.float32)
-            self.buffer_full_ep_states[self.position_full_ep, :len(ep_states)] = np_states
-            self.buffer_full_ep_actions[self.position_full_ep, :len(ep_states)] = np_actions
-            self.buffer_full_ep_rewards[self.position_full_ep, :len(ep_states)] = np_rewards
-
-            self.position_full_ep = self.position_full_ep + 1
-
-            if self.max_full_ep_size < self.position_full_ep:
-                self.max_full_ep_size = self.position_full_ep
+        # if len(ep_states) > 1:
+        #     np_states = np.array(ep_states)
+        #     np_actions = np.array(ep_actions)
+        #     np_rewards = np.array(ep_rewards)
+        #     self.buffer_full_ep_len[self.position_full_ep] = len(ep_states)
+        #     self.buffer_full_ep_states[self.position_full_ep, :, :] = np.zeros([self.max_seq_len, self.obs_dim], dtype=np.float32)
+        #     self.buffer_full_ep_actions[self.position_full_ep, :] = np.zeros([self.max_seq_len], dtype=np.int32)
+        #     self.buffer_full_ep_rewards[self.position_full_ep, :] = np.zeros([self.max_seq_len], dtype=np.float32)
+        #     self.buffer_full_ep_states[self.position_full_ep, :len(ep_states)] = np_states
+        #     self.buffer_full_ep_actions[self.position_full_ep, :len(ep_states)] = np_actions
+        #     self.buffer_full_ep_rewards[self.position_full_ep, :len(ep_states)] = np_rewards
+        #
+        #     self.position_full_ep = self.position_full_ep + 1
+        #
+        #     if self.max_full_ep_size < self.position_full_ep:
+        #         self.max_full_ep_size = self.position_full_ep
 
         # assert False
 
@@ -249,36 +262,38 @@ class r2d2_ReplayMemory:
         batch_hidden = (self.buffer_hidden[0][torch_idx] , self.buffer_hidden[1][torch_idx])
         batch_current_act = self.buffer_current_act[idx,:]
         batch_learn_forward_len = self.buffer_learn_forward_len[idx]
+        batch_next_obs = self.buffer_next_obs[idx]
+        batch_model_input_act = self.buffer_model_input_act[idx]
 
         # print(batch_hidden)
 
         # assert False
 
-        return batch_burn_in_hist, batch_learn_hist, batch_rewards, batch_learn_len, batch_forward_idx, batch_final_flag, batch_current_act , batch_hidden , batch_burn_in_len , batch_learn_forward_len
+        return batch_burn_in_hist, batch_learn_hist, batch_rewards, batch_learn_len, batch_forward_idx, batch_final_flag, batch_current_act , batch_hidden , batch_burn_in_len , batch_learn_forward_len , batch_next_obs , batch_model_input_act
 
-    def sample_full_ep(self, batch_size):
-        idx = np.random.choice(self.max_full_ep_size, batch_size, replace=False)
-
-        batch_lengths = self.buffer_full_ep_len[idx]
-
-        max_len = np.amax(batch_lengths)
-
-        # print(np.amax(batch_lengths))
-
-        batch_obs = torch.from_numpy(self.buffer_full_ep_states[idx, :max_len])
-
-        # print(batch_obs.shape)
-        # print(batch_obs)
-
-        # # batch_obs = F.one_hot(batch_obs.to((torch.int64)) , num_classes=self.obs_dim)
-
-        # print(batch_obs.shape)
-        # print(batch_obs)
-
-        batch_acts = torch.from_numpy(self.buffer_full_ep_actions[idx, :max_len])
-        # batch_acts = torch.from_numpy(self.buffer_actions[idx,1:max_len])
-        batch_rewards = torch.from_numpy(self.buffer_full_ep_rewards[idx, :max_len])
-        return batch_obs, batch_acts, batch_rewards, batch_lengths
+    # def sample_full_ep(self, batch_size):
+    #     idx = np.random.choice(self.max_full_ep_size, batch_size, replace=False)
+    #
+    #     batch_lengths = self.buffer_full_ep_len[idx]
+    #
+    #     max_len = np.amax(batch_lengths)
+    #
+    #     # print(np.amax(batch_lengths))
+    #
+    #     batch_obs = torch.from_numpy(self.buffer_full_ep_states[idx, :max_len])
+    #
+    #     # print(batch_obs.shape)
+    #     # print(batch_obs)
+    #
+    #     # # batch_obs = F.one_hot(batch_obs.to((torch.int64)) , num_classes=self.obs_dim)
+    #
+    #     # print(batch_obs.shape)
+    #     # print(batch_obs)
+    #
+    #     batch_acts = torch.from_numpy(self.buffer_full_ep_actions[idx, :max_len])
+    #     # batch_acts = torch.from_numpy(self.buffer_actions[idx,1:max_len])
+    #     batch_rewards = torch.from_numpy(self.buffer_full_ep_rewards[idx, :max_len])
+    #     return batch_obs, batch_acts, batch_rewards, batch_lengths
 
     def len_r2d2(self):
         if self.full:
@@ -286,8 +301,8 @@ class r2d2_ReplayMemory:
         else:
             return self.position_r2d2 + 1
 
-    def len_fullep(self):
-        return self.max_full_ep_size
+    # def len_fullep(self):
+    #     return self.max_full_ep_size
 
 
 

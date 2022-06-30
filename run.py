@@ -126,16 +126,18 @@ def run_exp(args):
                 next_state, reward, done, _ = env.step(action)  # Step
                 ls_actions.append(action)
                 ls_rewards.append(reward)
-                if args['model_alg'] == 'AIS':
-                    if memory.len_fullep() > args['batch_size'] and i_episode >= args['start_updates_to_model_after'] and total_numsteps % args['update_model_every_n_steps'] == 0:
-                        model_loss = sac.update_model(memory, args['batch_size'], args['model_updates_per_step'])
-                        avg_model_loss += model_loss
-                        model_updates += 1
+                # if args['model_alg'] == 'AIS':
+                #     if memory.len_fullep() > args['batch_size'] and i_episode >= args['start_updates_to_model_after'] and total_numsteps % args['update_model_every_n_steps'] == 0:
+                #         model_loss = sac.update_model(memory, args['batch_size'], args['model_updates_per_step'])
+                #         avg_model_loss += model_loss
+                #         model_updates += 1
                 if memory.len_r2d2() > args['batch_size'] and i_episode >= args['start_updates_to_p_q_after'] and total_numsteps % args['rl_update_every_n_steps'] == 0 and not args['only_train_model']:
-                    critic_loss, policy_loss = sac.update_parameters(memory, args['batch_size'], args['p_q_updates_per_step'])
+                    critic_loss, policy_loss , model_loss = sac.update_parameters(memory, args['batch_size'], args['p_q_updates_per_step'])
                     updates += 1
                     avg_p_loss += policy_loss
                     avg_q_loss += critic_loss
+                    avg_model_loss += model_loss
+                    model_updates += 1
                     # avg_p_loss += 0
                     # avg_q_loss += 0
                 episode_steps += 1

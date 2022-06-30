@@ -194,9 +194,9 @@ class SAC(object):
         if self.args['replay_type'] == 'vanilla':
             qf_losses, policy_losses = self.update_parameters_vanilla(memory,batch_size,updates)
         if self.args['replay_type'] == 'r2d2':
-            qf_losses, policy_losses = self.update_parameters_r2d2(memory, batch_size, updates)
+            qf_losses, policy_losses , model_losses = self.update_parameters_r2d2(memory, batch_size, updates)
 
-        return qf_losses, policy_losses
+        return qf_losses, policy_losses , model_losses
 
     def update_model(self, memory, batch_size, updates):
         # print('start training')
@@ -586,11 +586,12 @@ class SAC(object):
         # Sample a batch from memory
         # print('*********start_update**********')
         qf_losses = torch.zeros(updates)
+        model_losses = torch.zeros(updates)
         policy_losses = torch.zeros(updates)
         # print(list(range(updates)))
         for i_updates in range(updates):
             self.update_to_q += 1
-            batch_burn_in_hist, batch_learn_hist, batch_rewards, batch_learn_len, batch_forward_idx, batch_final_flag, batch_current_act, batch_hidden, batch_burn_in_len, batch_learn_forward_len = memory.sample(batch_size)
+            batch_burn_in_hist, batch_learn_hist, batch_rewards, batch_learn_len, batch_forward_idx, batch_final_flag, batch_current_act, batch_hidden, batch_burn_in_len, batch_learn_forward_len , batch_next_obs , batch_model_input_act = memory.sample(batch_size)
 
 
             # print(batch_burn_in_hist.shape)
@@ -621,13 +622,13 @@ class SAC(object):
             # print(type(batch_burn_in_len[zero_idx]))
             batch_burn_in_len[zero_idx] = 1
             # print(list(batch_burn_in_len))
-            if self.model_alg == 'AIS':
-                with torch.no_grad():
-                    _, hidden_burn_in = self.rho(batch_burn_in_hist, batch_size, batch_hidden, self.device , list(batch_burn_in_len))
-            else:
+            # if self.model_alg == 'AIS':
+            #     with torch.no_grad():
+            _, hidden_burn_in = self.rho(batch_burn_in_hist, batch_size, batch_hidden, self.device , list(batch_burn_in_len))
+            # else:
                 # with torch.no_grad():
-                _, hidden_burn_in = self.rho(batch_burn_in_hist, batch_size, batch_hidden, self.device,
-                                             list(batch_burn_in_len))
+            # _, hidden_burn_in = self.rho(batch_burn_in_hist, batch_size, batch_hidden, self.device,
+            #                                  list(batch_burn_in_len))
 
             # print(hidden_burn_in[0].shape)
             #
@@ -643,19 +644,101 @@ class SAC(object):
             # print(hidden_burn_in[0][:, zero_idx, :], hidden_burn_in[1][:, zero_idx, :])
             batch_learn_hist = torch.from_numpy(batch_learn_hist).to(self.device)
             # self.critic.train()
+            # if self.model_alg == 'AIS':
+                # with torch.no_grad():
+            ais_z, hidden = self.rho(batch_learn_hist, batch_size, hidden_burn_in, self.device,
+                                                 list(batch_learn_forward_len))
             if self.model_alg == 'AIS':
-                with torch.no_grad():
-                    ais_z, hidden = self.rho(batch_learn_hist, batch_size, hidden_burn_in, self.device,
-                                                 list(batch_learn_forward_len))
+                torch_model_input_act = torch.from_numpy(batch_model_input_act).to(self.device)
+                # print(torch_model_input_act.shape)
+                input_psi_acts_packed = pack_padded_sequence(torch_model_input_act, list(batch_learn_forward_len), batch_first=True,
+                                                             enforce_sorted=False)
+                # print(input_psi_acts_packed.data.shape)
+                # # # print(ais_z)
+                # print(ais_z.data.shape)
 
-            if self.model_alg == 'None':
-                ais_z, hidden = self.rho(batch_learn_hist, batch_size, hidden_burn_in, self.device,
-                                                 list(batch_learn_forward_len))
+                psi_input = torch.cat((ais_z.data, input_psi_acts_packed.data), 1).to(self.device)
+
+
+
+                predicted_obs =  self.psi.predict_obs(psi_input)
+
+                next_obs = torch.from_numpy(batch_next_obs).to(self.device)
+
+                # print(next_obs.shape)
+
+                next_obs_packed = pack_padded_sequence(next_obs, list(batch_learn_forward_len), batch_first=True,
+                                                             enforce_sorted=False)
+
+                # print(next_obs_packed.data.shape)
+                #
+                #
+                #
+                # print(predicted_obs.shape)
+
+                pow = torch.pow(torch.norm(predicted_obs, dim=1), 2)
+
+                # print(pow.shape)
+                dot = torch.matmul(next_obs_packed.data.view(pow.shape[0], 1, self.obs_dim),
+                                   predicted_obs.view(pow.shape[0], self.obs_dim, 1))
+                # print(dot.view(-1).shape)
+
+                next_obs_loss = (pow - 2 * dot).mean()
+
+                input_psi_acts_packed_reward = pack_padded_sequence(torch_model_input_act, list(batch_learn_len),
+                                                             batch_first=True,
+                                                             enforce_sorted=False)
+                unpacked_ais_z , _ = pad_packed_sequence(ais_z, batch_first=True)
+
+                packed_ais_z_r = pack_padded_sequence(unpacked_ais_z, list(batch_learn_len),
+                                                             batch_first=True,
+                                                             enforce_sorted=False)
+
+                # print(input_psi_acts_packed_reward.data.shape)
+                # print(packed_ais_z_r.data.shape)
+
+                psi_input_r = torch.cat((packed_ais_z_r.data.data, input_psi_acts_packed_reward.data), 1).to(self.device)
+
+                predicted_reward = self.psi.predict_reward(psi_input_r)
+
+
+
+                #
+                target_reward = torch.from_numpy(batch_rewards).to(self.device)
+
+
+                packed_target_reward = pack_padded_sequence(target_reward, list(batch_learn_len), batch_first=True,
+                                                     enforce_sorted=False)
+                #
+                # print(packed_target_reward.data.shape)
+                # print(predicted_reward.shape)
+                #
+                #
+                reward_loss = F.mse_loss(predicted_reward.view(-1), packed_target_reward.data)
+
+                total_model_loss = next_obs_loss * self.Lambda + reward_loss * (1 - self.Lambda)
+
+
+                # ais_z = ais_z.detach
+                model_losses[i_updates] = total_model_loss
+
+
+
+
+                # assert False
+
+
+
+            # if self.model_alg == 'None':
+            #     ais_z, hidden = self.rho(batch_learn_hist, batch_size, hidden_burn_in, self.device,
+            #                                      list(batch_learn_forward_len))
 
             # print(ais_z)
             # print(ais_z.data.shape)
 
             unpacked_ais_z, lens_unpacked = pad_packed_sequence(ais_z, batch_first=True)
+            if self.model_alg == 'AIS':
+                unpacked_ais_z = unpacked_ais_z.detach()
 
             # print(unpacked_ais_z.shape)
             # print(lens_unpacked)
@@ -761,150 +844,18 @@ class SAC(object):
             qf_losses[i_updates] = qf_loss
 
             self.critic_optim.zero_grad()
-            if self.model_alg == 'None':
-                self.AIS_optimizer.zero_grad()
+            # if self.model_alg == 'None':
+            self.AIS_optimizer.zero_grad()
+            if self.model_alg == 'AIS':
+                total_model_loss.backward()
+                self.AIS_optimizer.step()
             qf_loss.backward()
             self.critic_optim.step()
             if self.model_alg == 'None':
                 self.AIS_optimizer.step()
 
 
-            # if self.rl_alg == 'SAC':
-            #     self.policy_optim.zero_grad()
-            #     policy_loss.backward()
-            #     self.policy_optim.step()
 
-
-            # assert False
-
-            #
-            # batch_idx_ = torch.unsqueeze(batch_idx, 1)
-            #
-            # temp_ones = torch.ones((batch_size, 1, self.AIS_state_size))
-            #
-            # batch_idx_ = (temp_ones * batch_idx_[:, :, None]).to(self.device)
-            #
-            # # input_obs = F.one_hot(batch_obs.to((torch.int64)), num_classes=self.obs_dim).to(self.device) this is what was commented
-            #
-            # input_obs = batch_obs.to(self.device)
-            #
-            # # print('batch_obs',batch_obs.shape,batch_obs)
-            #
-            # input_acts = batch_acts[:, :batch_acts.shape[1] - 1]
-            # input_acts = F.one_hot(input_acts.to((torch.int64)), num_classes=self.act_dim)
-            #
-            # input_acts = torch.cat((torch.zeros(batch_size, 1, self.act_dim), input_acts), 1).to(self.device)
-            #
-            # # print('input_acts',input_acts.shape,input_acts)
-            #
-            # rho_input = torch.cat((input_obs, input_acts), 2)
-            #
-            # # print('rho_input',rho_input.shape,rho_input)
-            # hidden = None
-            #
-            # if self.model_alg == 'AIS':
-            #     with torch.no_grad():
-            #         ais_z, hidden = self.rho(rho_input, batch_size, hidden, self.device)
-            # if self.model_alg == 'None':
-            #     ais_z, hidden = self.rho(rho_input, batch_size, hidden, self.device)
-            #
-            # # print('ais_z',ais_z.shape,ais_z)
-            # h_input = ais_z.gather(1, batch_idx_.long())
-            # # print('h_input' , h_input.shape , h_input)
-            # h_next_input = ais_z.gather(1, batch_idx_.long() + 1)
-            #
-            # qf1, qf2 = self.critic(h_input.squeeze())
-            #
-            # # print('qf',qf1.shape,qf1)
-            #
-            # batch_idx_ = torch.unsqueeze(batch_idx, 1).to(self.device)
-            # q_a = batch_acts.to(self.device).gather(1, batch_idx_.long())
-            #
-            # # print('batch_acts',batch_acts.shape,batch_acts)
-            # # print('q_a',q_a.shape,q_a)
-            #
-            # qf1 = qf1.gather(1, q_a.long())
-            # qf2 = qf2.gather(1, q_a.long())
-            #
-            # # print('qf1',qf1.shape,qf1)
-            #
-            # with torch.no_grad():
-            #
-            #     # print('next_state_pi', next_state_pi.shape,next_state_pi)
-            #
-            #     qf1_next_target, qf2_next_target = self.critic_target(h_next_input.squeeze())
-            #
-            #     if self.rl_alg == 'QL':
-            #         min_qf_next_target = (torch.min(qf1_next_target, qf2_next_target)).max(1)[0].unsqueeze(1)
-            #         # print('min_qf',min_qf_next_target.shape, min_qf_next_target)
-            #
-            #     if self.rl_alg == 'SAC':
-            #         _, next_state_pi, next_state_log_pi = self.policy.sample(h_next_input.squeeze())
-            #         min_qf_next_target = (next_state_pi * (
-            #                 torch.min(qf1_next_target, qf2_next_target) - self.alpha * next_state_log_pi)).sum(dim=1,
-            #                                                                                                    keepdim=True)
-            #
-            #     q_r = batch_rewards.to(self.device).gather(1, batch_idx_.long())
-            #     # print('q_r',q_r.shape,q_r)
-            #     # print('batch_rewards',batch_rewards.shape,batch_rewards)
-            #     # print('batch_idx_',batch_idx_.shape,batch_idx_)
-            #     # print('batch_mask',batch_mask.shape,batch_mask)
-            #
-            #     # print('min_qf_next_target',min_qf_next_target.shape,min_qf_next_target)
-            #     next_q_value = q_r + self.gamma * batch_mask.unsqueeze(1).to(self.device) * min_qf_next_target
-            # # print('next_q', next_q_value.shape , next_q_value)
-            #
-            # qf1_loss = F.mse_loss(qf1,
-            #                       next_q_value)  # JQ = 𝔼(st,at)~D[0.5(Q1(st,at) - r(st,at) - γ(𝔼st+1~p[V(st+1)]))^2]
-            # qf2_loss = F.mse_loss(qf2,
-            #                       next_q_value)  # JQ = 𝔼(st,at)~D[0.5(Q1(st,at) - r(st,at) - γ(𝔼st+1~p[V(st+1)]))^2]
-            # # qf_loss = qf1_loss + qf2_loss
-            # qf_loss = qf1_loss + qf2_loss
-            # # print(qf_loss)
-            # qf_losses[i_updates] = qf_loss
-            # # raise 'Error'
-            #
-            # # print('qf_lossssssss', qf_loss.shape, qf_loss)
-            #
-            # if self.rl_alg == 'SAC':
-            #     _, pi, log_pi = self.policy.sample(h_input.detach().squeeze())
-            #     # print('pi', pi.shape , pi)
-            #     with torch.no_grad():
-            #         qf1_pi, qf2_pi = self.critic(h_input.squeeze())
-            #         # print('qf1 and qf2 pi' , qf1_pi , qf2_pi)
-            #         min_qf_pi = torch.min(qf1_pi, qf2_pi)
-            #         # print('min_qf_pi',min_qf_pi)
-            #     entropies = -torch.sum(pi * log_pi, dim=1, keepdim=True)
-            #     # print('entropy before sum',pi * log_pi)
-            #     # print('entropies',entropies)
-            #     q = torch.sum(min_qf_pi * pi, dim=1, keepdim=True)
-            #     # print('expected q before sum', min_qf_pi * pi)
-            #     # print('q policy',q)
-            #     policy_loss = (-(self.alpha * entropies) - q).mean()
-            #
-            #     # print('policy',policy_loss.shape,policy_loss)
-            #     policy_losses[i_updates] = policy_loss
-            #
-            # if self.automatic_entropy_tuning:
-            #     alpha_loss = -(self.log_alpha * (log_pi + self.target_entropy).detach()).mean()
-            #
-            #     self.alpha_optim.zero_grad()
-            #     alpha_loss.backward()
-            #     self.alpha_optim.step()
-            #
-            #     self.alpha = self.log_alpha.exp()
-            #
-            # self.critic_optim.zero_grad()
-            # if self.model_alg == 'None':
-            #     self.AIS_optimizer.zero_grad()
-            # qf_loss.backward()
-            # self.critic_optim.step()
-            # if self.model_alg == 'None':
-            #     self.AIS_optimizer.step()
-            # if self.rl_alg == 'SAC':
-            #     self.policy_optim.zero_grad()
-            #     policy_loss.backward()
-            #     self.policy_optim.step()
 
         if self.update_to_q % self.target_update_interval == 0:
             # hard_update(self.critic_target, self.critic)
@@ -915,16 +866,17 @@ class SAC(object):
 
         # assert False
         qf_losses = qf_losses.mean()
+        model_losses = model_losses.mean()
         # if self.rl_alg == 'SAC':
         #     policy_losses = policy_losses.mean()
         if self.rl_alg == 'QL':
             policy_losses = torch.zeros(1)
         hard_update(self.policy_cpu, self.policy)
         hard_update(self.q_cpu, self.critic)
-        if self.model_alg == 'None':
-            hard_update(self.rho_cpu, self.rho)
+        # if self.model_alg == 'None':
+        hard_update(self.rho_cpu, self.rho)
 
-        return qf_losses.item(), policy_losses.item()
+        return qf_losses.item(), policy_losses.item() , model_losses
 
 
     def save_model(self , dir , seed):
