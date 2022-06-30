@@ -18,13 +18,13 @@ class rho_net(nn.Module):
 
         self.apply(weights_init_)
 
-    def forward(self, x, batch_size, hidden, device , batch_lengths):
+    def forward(self, x, batch_size, hidden, device , batch_lengths , replay_type):
         if hidden == None:
             hidden = (torch.zeros(1, batch_size, self.AIS_state_size).to(device),
                       torch.zeros(1, batch_size, self.AIS_state_size).to(device))
         # print(x.shape,batch_lengths)
         x = F.elu(self.fc1(x))
-        if batch_size > 1:
+        if batch_size > 1 and replay_type == 'r2d2':
             x = pack_padded_sequence(x, batch_lengths, batch_first=True,enforce_sorted=False)
             # print('packed',x.data.shape)
             # print(x)
@@ -42,7 +42,10 @@ class psi_net(nn.Module):
         self.fc1_r = nn.Linear(input_ndims, int(AIS_state_size / 2))
         self.fc1_d = nn.Linear(input_ndims, int(AIS_state_size / 2))
         self.fc2_r = nn.Linear(int(AIS_state_size / 2), 1)
-        self.fc2_d = nn.Linear(int(AIS_state_size / 2), num_obs)
+        if highdim is True:
+            self.fc2_d = nn.Linear(int(AIS_state_size / 2), num_obs)
+        else:
+            self.fc2_d = nn.Linear(int(AIS_state_size / 2), num_obs+1)
         self.highdim = highdim
 
     def forward(self, x):
@@ -124,8 +127,9 @@ class policy_net_true_state(nn.Module):
 
 
 class QNetwork_discrete(nn.Module):
-    def __init__(self, num_inputs, num_actions, hidden_dim=5):
+    def __init__(self, num_inputs, num_actions, hidden_dim , double ):
         super(QNetwork_discrete, self).__init__()
+        self.double = double
 
         # Q1 architecture
         self.linear1 = nn.Linear(num_inputs, hidden_dim)
@@ -133,9 +137,10 @@ class QNetwork_discrete(nn.Module):
         self.linear3 = nn.Linear(hidden_dim, num_actions)
 
         # Q2 architecture
-        # self.linear4 = nn.Linear(num_inputs, hidden_dim)
-        # self.linear5 = nn.Linear(hidden_dim, hidden_dim)
-        # self.linear6 = nn.Linear(hidden_dim, num_actions)
+        if self.double is True:
+            self.linear4 = nn.Linear(num_inputs, hidden_dim)
+            self.linear5 = nn.Linear(hidden_dim, hidden_dim)
+            self.linear6 = nn.Linear(hidden_dim, num_actions)
 
         self.apply(weights_init_)
 
@@ -146,9 +151,11 @@ class QNetwork_discrete(nn.Module):
         x1 = F.elu(self.linear2(x1))
         x1 = self.linear3(x1)
 
-        # x2 = F.elu(self.linear4(state))
-        # x2 = F.elu(self.linear5(x2))
-        # x2 = self.linear6(x2)
+        if self.double is True:
+            x2 = F.elu(self.linear4(state))
+            x2 = F.elu(self.linear5(x2))
+            x2 = self.linear6(x2)
+            return x1 ,x2
 
         return x1
 

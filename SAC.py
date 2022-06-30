@@ -62,12 +62,14 @@ class SAC(object):
 
 
         self.policy = policy_net(action_space.n, self.AIS_state_size).to(self.device)
-
-        self.critic = QNetwork_discrete(self.AIS_state_size, action_space.n, args['hidden_size']).to(device=self.device)
-        self.critic_target = QNetwork_discrete(self.AIS_state_size, action_space.n, args['hidden_size']).to(self.device)
+        double = False
+        if self.args['replay_type'] == 'vanilla':
+            double = True
+        self.critic = QNetwork_discrete(self.AIS_state_size, action_space.n, args['hidden_size'] , double).to(device=self.device)
+        self.critic_target = QNetwork_discrete(self.AIS_state_size, action_space.n, args['hidden_size'] , double).to(self.device)
 
         self.policy_cpu = policy_net(action_space.n, self.AIS_state_size)
-        self.q_cpu = QNetwork_discrete(self.AIS_state_size, action_space.n, args['hidden_size'])
+        self.q_cpu = QNetwork_discrete(self.AIS_state_size, action_space.n, args['hidden_size'] , double)
 
         # if self.alg == 'SAC+AIS':
         self.rho = rho_net(num_inputs, action_space.n, self.AIS_state_size).to(self.device)
@@ -151,7 +153,7 @@ class SAC(object):
             rho_input = torch.cat((state, action)).reshape(1, 1, -1)
             # print('rho_in',rho_input)
             # if self.alg == 'SAC+AIS':
-            ais_z, hidden_p = self.rho_cpu(rho_input, 1, hidden_p, 'cpu' , [])
+            ais_z, hidden_p = self.rho_cpu(rho_input, 1, hidden_p, 'cpu' , [] , self.args['replay_type'])
             # if self.alg == 'SAC':
             #     ais_z, hidden_p = self.rho_policy(rho_input, 1, hidden_p)
             # print('ais',ais_z)
@@ -172,9 +174,12 @@ class SAC(object):
                 # print(action)
                 # raise "Error"
             if self.rl_alg == 'QL':
-                qf = self.q_cpu(ais_z.detach())
                 # print(qf.shape,qf)
-                # min_q = (torch.min(qf1, qf2))
+                if self.args['replay_type'] == 'vanilla':
+                    qf1 , qf2 = self.q_cpu(ais_z.detach())
+                    qf = (torch.min(qf1, qf2))
+                else:
+                    qf = self.q_cpu(ais_z.detach())
                 # print(qf.max(1)[1])
                 max_ac = qf.max(1)[1]
 
@@ -192,6 +197,7 @@ class SAC(object):
 
     def update_parameters(self, memory, batch_size, updates):
         if self.args['replay_type'] == 'vanilla':
+            model_losses = 0
             qf_losses, policy_losses = self.update_parameters_vanilla(memory,batch_size,updates)
         if self.args['replay_type'] == 'r2d2':
             qf_losses, policy_losses , model_losses = self.update_parameters_r2d2(memory, batch_size, updates)
@@ -204,19 +210,22 @@ class SAC(object):
         losses = torch.zeros(updates)
         # print(range(updates))
         for i_update in range(updates):
-            batch_obs, batch_acts, batch_rewards, batch_lengths = memory.sample_full_ep(batch_size)
+            # print('model_update')
+            batch_input_obs, batch_target_obs , batch_acts, batch_rewards, batch_lengths , _ = memory.sample_full_ep(batch_size)
 
-            # print('obs',batch_obs.shape,batch_obs)
+
+            # print('obs',batch_input_obs.shape,batch_input_obs)
+            # print('target_obs',batch_target_obs.shape,batch_target_obs)
             # print('acts',batch_acts.shape,batch_acts)
             # print('rewards',batch_rewards.shape,batch_rewards)
-            # print('lengths',batch_lengths.shape,batch_lengths)
+            # print('lengths',batch_lengths)
             #
             # print('list',list(batch_lengths))
 
             batch_rewards = batch_rewards.to(self.device)
 
             # input_obs = F.one_hot(batch_obs.to((torch.int64)), num_classes=self.obs_dim).to(self.device) ** this is what was commented
-            input_obs = batch_obs.to(self.device)
+            input_obs = batch_input_obs[:,:,:].to(self.device)
             # print('one_hot_obs',input_obs.shape , input_obs)
 
             input_acts = batch_acts[:, :batch_acts.shape[1] - 1]
@@ -227,9 +236,11 @@ class SAC(object):
             # print('one_hot_acts',input_acts.shape , input_acts)
 
 
+
             rho_input = torch.cat((input_obs, input_acts), 2).to(self.device)
 
             # print('rho_input',rho_input.shape , rho_input)
+
 
             # packed_rho_input = pack_padded_sequence(rho_input, list(batch_lengths), batch_first=True, enforce_sorted=False)
             #
@@ -238,13 +249,14 @@ class SAC(object):
             # print(packed_rho_input.batch_sizes.shape)
 
             hidden = None
-            ais_z, hidden = self.rho(rho_input, batch_size, hidden, self.device , list(batch_lengths))
+            ais_z, hidden = self.rho(rho_input, batch_size, hidden, self.device , list(batch_lengths) , 'r2d2')
 
             # print(ais_z)
             # print(ais_z.data.shape)
             # print(ais_z.data)
             #
             # print(hidden[0].shape,hidden[1].shape)
+
 
 
 
@@ -263,9 +275,9 @@ class SAC(object):
             # print(ais_z.data.shape)
 
 
-            true_obs = input_obs[:, 1:, :]
+            true_obs = batch_target_obs.to(self.device)
 
-            # print(true_obs.shape)
+            # print('true obs',true_obs,true_obs.shape)
 
             psi_input = torch.cat((ais_z.data, input_psi_acts_packed.data), 1).to(self.device)
 
@@ -288,56 +300,68 @@ class SAC(object):
 
             # print(reward_loss)
 
-            unpacked_ais_z , lens_unpacked = pad_packed_sequence(ais_z, batch_first=True )
-
-            # print(unpacked_ais_z)
-            # print(unpacked_ais_z.data.shape)
-            # print(lens_unpacked)
-
-            ais_z = unpacked_ais_z[:,:unpacked_ais_z.shape[1]-1,:]
-
-            # print(ais_z.shape)
-
-            batch_lengths_ = [e - 1 for e in list(batch_lengths)]
-            # print(batch_lengths_)
-            ais_z_packed = pack_padded_sequence(ais_z,batch_lengths_, batch_first=True,enforce_sorted=False)
-
-            # print(ais_z_packed)
-            # print(ais_z_packed.data.shape)
+            # unpacked_ais_z , lens_unpacked = pad_packed_sequence(ais_z, batch_first=True )
             #
-            # print(input_psi_acts.shape, input_psi_acts)
-
-            input_psi_acts_packed = pack_padded_sequence(input_psi_acts, batch_lengths_, batch_first=True,
-                                                         enforce_sorted=False)
-
-            # print(input_psi_acts_packed)
-            # print(input_psi_acts_packed.data.shape)
-
-            psi_input = torch.cat((ais_z_packed.data, input_psi_acts_packed.data), 1).to(self.device)
+            # # print(unpacked_ais_z)
+            # # print(unpacked_ais_z.data.shape)
+            # # print(lens_unpacked)
+            #
+            # ais_z = unpacked_ais_z[:,:unpacked_ais_z.shape[1]-1,:]
+            #
+            # # print(ais_z.shape)
+            #
+            # batch_lengths_ = [e - 1 for e in list(batch_lengths)]
+            # # print(batch_lengths_)
+            # ais_z_packed = pack_padded_sequence(ais_z,batch_lengths_, batch_first=True,enforce_sorted=False)
+            #
+            # # print(ais_z_packed)
+            # # print(ais_z_packed.data.shape)
+            # #
+            # # print(input_psi_acts.shape, input_psi_acts)
+            #
+            # input_psi_acts_packed = pack_padded_sequence(input_psi_acts, batch_lengths_, batch_first=True,
+            #                                              enforce_sorted=False)
+            #
+            # # print(input_psi_acts_packed)
+            # # print(input_psi_acts_packed.data.shape)
+            #
+            # psi_input = torch.cat((ais_z_packed.data, input_psi_acts_packed.data), 1).to(self.device)
 
             # print(psi_input.shape)
 
             obs_probs = self.psi.predict_obs(psi_input)
 
-            # print(obs_probs.shape)
-            #
-            # print(true_obs.shape)
+            # print(obs_probs.shape, obs_probs)
+            # #
+            # # print(true_obs.shape)
+            # print(batch_lengths)
+            # print(batch_target_obs)
 
-            true_obs_packed = pack_padded_sequence(true_obs, batch_lengths_, batch_first=True,
+            true_obs_packed = pack_padded_sequence(true_obs, batch_lengths, batch_first=True,
                                                          enforce_sorted=False)
 
             # print(true_obs_packed)
             # print(true_obs_packed.data.shape)
 
+
             pow = torch.pow(torch.norm(obs_probs, dim=1), 2)
 
-            # print(pow.shape)
-            dot = torch.matmul(true_obs_packed.data.view(pow.shape[0],1,self.obs_dim), obs_probs.view(pow.shape[0],self.obs_dim,1))
-            # print(dot.view(-1).shape)
+            # print('ggg',pow.shape,pow)
+            # print(true_obs_packed.data,obs_probs)
+            dot = torch.matmul(true_obs_packed.data.view(pow.shape[0],1,self.obs_dim+1), obs_probs.view(pow.shape[0],self.obs_dim+1,1))
+            # print(dot.shape,dot.view(-1))
 
-            next_obs_loss = (pow - 2 * dot).mean()
+            next_obs_loss = (pow - 2 * dot.view(-1)).mean()
+
+            # print(next_obs_loss)
+
 
             model_loss = next_obs_loss * self.Lambda + reward_loss * (1 - self.Lambda)
+            # print('model_loss' , model_loss)
+
+
+
+
 
 
 
@@ -432,11 +456,21 @@ class SAC(object):
         for i_updates in range(updates):
             batch_obs, batch_acts, batch_rewards, batch_idx, batch_lengths, batch_mask = memory.sample(batch_size)
 
+            # print('q update')
+            # print(batch_obs.shape)
+            # print(batch_acts.shape)
+            # print(batch_rewards.shape)
+            # print(batch_idx)
+            # print(batch_lengths)
+
             batch_idx_ = torch.unsqueeze(batch_idx, 1)
+            # print(batch_idx_)
 
             temp_ones = torch.ones((batch_size, 1, self.AIS_state_size))
 
             batch_idx_ = (temp_ones * batch_idx_[:, :, None]).to(self.device)
+
+            # print(batch_idx_.shape, batch_idx_)
 
             # input_obs = F.one_hot(batch_obs.to((torch.int64)), num_classes=self.obs_dim).to(self.device) this is what was commented
 
@@ -458,21 +492,28 @@ class SAC(object):
 
             if self.model_alg == 'AIS':
                 with torch.no_grad():
-                    ais_z, hidden = self.rho(rho_input, batch_size, hidden, self.device)
+                    ais_z, hidden = self.rho(rho_input, batch_size, hidden, self.device , [] , self.args['replay_type'])
             if self.model_alg == 'None':
-                ais_z, hidden = self.rho(rho_input, batch_size, hidden, self.device)
-
+                ais_z, hidden = self.rho(rho_input, batch_size, hidden, self.device , [] , self.args['replay_type'])
+            # print('gggggg',batch_idx_.shape, batch_idx_)
             # print('ais_z',ais_z.shape,ais_z)
             h_input = ais_z.gather(1, batch_idx_.long())
             # print('h_input' , h_input.shape , h_input)
-            h_next_input = ais_z.gather(1, batch_idx_.long() + 1)
-
+            h_next_input = ais_z.gather(1,  torch.add(batch_idx_.long(), 1))
+            # print('gggggg', batch_idx_.shape, batch_idx_)
             qf1, qf2 = self.critic(h_input.squeeze())
 
             # print('qf',qf1.shape,qf1)
+            # print(batch_idx_.shape,batch_idx_)
+            # print(batch_acts.shape,batch_acts)
 
             batch_idx_ = torch.unsqueeze(batch_idx, 1).to(self.device)
+            # print('idx',batch_idx_.shape, batch_idx_)
             q_a = batch_acts.to(self.device).gather(1, batch_idx_.long())
+
+            # print(q_a.shape,q_a)
+
+
 
             # print('batch_acts',batch_acts.shape,batch_acts)
             # print('q_a',q_a.shape,q_a)
@@ -481,6 +522,7 @@ class SAC(object):
             qf2 = qf2.gather(1, q_a.long())
 
             # print('qf1',qf1.shape,qf1)
+
 
             with torch.no_grad():
 
@@ -625,11 +667,11 @@ class SAC(object):
             # if self.model_alg == 'AIS':
             #     with torch.no_grad():
             if self.model_alg == 'AIS':
-                _, hidden_burn_in = self.rho(batch_burn_in_hist, batch_size, batch_hidden, self.device , list(batch_burn_in_len))
+                _, hidden_burn_in = self.rho(batch_burn_in_hist, batch_size, batch_hidden, self.device , list(batch_burn_in_len), self.args['replay_type'])
             else:
                 with torch.no_grad():
                     _, hidden_burn_in = self.rho(batch_burn_in_hist, batch_size, batch_hidden, self.device,
-                                                 list(batch_burn_in_len))
+                                                 list(batch_burn_in_len) , self.args['replay_type'])
             # else:
                 # with torch.no_grad():
             # _, hidden_burn_in = self.rho(batch_burn_in_hist, batch_size, batch_hidden, self.device,
@@ -652,7 +694,7 @@ class SAC(object):
             # if self.model_alg == 'AIS':
                 # with torch.no_grad():
             ais_z, hidden = self.rho(batch_learn_hist, batch_size, hidden_burn_in, self.device,
-                                                 list(batch_learn_forward_len))
+                                                 list(batch_learn_forward_len), self.args['replay_type'])
             if self.model_alg == 'AIS':
                 torch_model_input_act = torch.from_numpy(batch_model_input_act).to(self.device)
                 # print(torch_model_input_act.shape)

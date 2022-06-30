@@ -6,22 +6,30 @@ import torch.nn.functional as F
 
 
 class Rec_ReplayMemory:
-    def __init__(self, capacity, obs_dim, act_dim, max_sequence_length, seed):
-        random.seed(seed)
+    def __init__(self, capacity, obs_dim, act_dim, max_sequence_length):
         self.capacity = capacity
         self.max_seq_len = max_sequence_length
         self.obs_dim = obs_dim
         self.act_dim = act_dim
-        self.buffer_states = np.zeros([self.capacity, self.max_seq_len , self.obs_dim], dtype=np.float32)
-        self.buffer_actions = np.zeros([self.capacity, self.max_seq_len], dtype=np.int32)
-        self.buffer_rewards = np.zeros([self.capacity, self.max_seq_len], dtype=np.float32)
+        self.buffer_states = np.zeros([self.capacity, self.max_seq_len + 1 , self.obs_dim], dtype=np.float32)
+        self.buffer_actions = np.zeros([self.capacity, self.max_seq_len + 1], dtype=np.int32)
+        self.buffer_rewards = np.zeros([self.capacity, self.max_seq_len + 1], dtype=np.float32)
         self.buffer_ep_len = np.zeros([self.capacity], dtype=np.int32)
 
         self.position = 0
 
         self.full = False
 
-    def push(self, ep_states, ep_actions, ep_rewards):
+    def reset(self, seed):
+        random.seed(seed)
+
+        self.position = 0
+        # self.position_full_ep = 0
+        # self.max_full_ep_size = 0
+
+        self.full = False
+
+    def push(self, ep_states, ep_actions, ep_rewards , ep_hiddens):
         # if len(self.buffer_states) < self.capacity:
         #     self.buffer_states.append(None)
         #     self.buffer_actions.append(None)
@@ -37,9 +45,9 @@ class Rec_ReplayMemory:
         np_actions = np.array(ep_actions)
         np_rewards = np.array(ep_rewards)
         self.buffer_ep_len[self.position] = len(ep_states)
-        self.buffer_states[self.position, : , :] = np.zeros([self.max_seq_len, self.obs_dim], dtype=np.float32)
-        self.buffer_actions[self.position, :] = np.zeros([self.max_seq_len], dtype=np.int32)
-        self.buffer_rewards[self.position, :] = np.zeros([self.max_seq_len], dtype=np.float32)
+        self.buffer_states[self.position, : , :] = np.zeros([self.max_seq_len+1, self.obs_dim], dtype=np.float32)
+        self.buffer_actions[self.position, :] = np.zeros([self.max_seq_len+1], dtype=np.int32)
+        self.buffer_rewards[self.position, :] = np.zeros([self.max_seq_len+1], dtype=np.float32)
         self.buffer_states[self.position, :len(ep_states)] = np_states
         self.buffer_actions[self.position, :len(ep_states)] = np_actions
         self.buffer_rewards[self.position, :len(ep_states)] = np_rewards
@@ -101,7 +109,14 @@ class Rec_ReplayMemory:
 
         # print(np.amax(batch_lengths))
 
-        batch_obs = torch.from_numpy(self.buffer_states[idx, :max_len])
+        batch_input_obs = torch.from_numpy(self.buffer_states[idx, :max_len])
+        batch_target_obs = np.zeros([batch_size, max_len , self.obs_dim+1], dtype=np.float32)
+        batch_target_obs[:,:max_len-1,:self.obs_dim] = self.buffer_states[idx, 1:max_len]
+        for i in range(batch_size):
+            batch_target_obs[i,batch_lengths[i]-1,-1] = 1
+
+
+        batch_target_obs = torch.from_numpy(batch_target_obs)
 
         # print(batch_obs.shape)
         # print(batch_obs)
@@ -114,7 +129,7 @@ class Rec_ReplayMemory:
         batch_acts = torch.from_numpy(self.buffer_actions[idx, :max_len])
         # batch_acts = torch.from_numpy(self.buffer_actions[idx,1:max_len])
         batch_rewards = torch.from_numpy(self.buffer_rewards[idx, :max_len])
-        return batch_obs, batch_acts, batch_rewards, batch_lengths, max_len
+        return batch_input_obs , batch_target_obs, batch_acts, batch_rewards, batch_lengths, max_len
 
     def __len__(self):
         if self.full:

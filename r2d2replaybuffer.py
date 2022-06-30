@@ -295,7 +295,7 @@ class r2d2_ReplayMemory:
     #     batch_rewards = torch.from_numpy(self.buffer_full_ep_rewards[idx, :max_len])
     #     return batch_obs, batch_acts, batch_rewards, batch_lengths
 
-    def len_r2d2(self):
+    def __len__(self):
         if self.full:
             return self.capacity
         else:
