@@ -666,11 +666,11 @@ class SAC(object):
             # print(list(batch_burn_in_len))
             # if self.model_alg == 'AIS':
             #     with torch.no_grad():
-            if self.model_alg == 'AIS':
-                _, hidden_burn_in = self.rho(batch_burn_in_hist, batch_size, batch_hidden, self.device , list(batch_burn_in_len), self.args['replay_type'])
-            else:
-                with torch.no_grad():
-                    _, hidden_burn_in = self.rho(batch_burn_in_hist, batch_size, batch_hidden, self.device,
+            # if self.model_alg == 'AIS':
+            #     _, hidden_burn_in = self.rho(batch_burn_in_hist, batch_size, batch_hidden, self.device , list(batch_burn_in_len), self.args['replay_type'])
+            # else:
+                # with torch.no_grad():
+            _, hidden_burn_in = self.rho(batch_burn_in_hist, batch_size, batch_hidden, self.device,
                                                  list(batch_burn_in_len) , self.args['replay_type'])
             # else:
                 # with torch.no_grad():
@@ -709,10 +709,14 @@ class SAC(object):
 
 
                 predicted_obs =  self.psi.predict_obs(psi_input)
+                # print(predicted_obs.shape)
 
                 next_obs = torch.from_numpy(batch_next_obs).to(self.device)
 
-                # print(next_obs.shape)
+                # print(batch_learn_forward_len)
+                #
+                # print(next_obs.shape, next_obs)
+                # assert False
 
                 next_obs_packed = pack_padded_sequence(next_obs, list(batch_learn_forward_len), batch_first=True,
                                                              enforce_sorted=False)
@@ -726,8 +730,8 @@ class SAC(object):
                 pow = torch.pow(torch.norm(predicted_obs, dim=1), 2)
 
                 # print(pow.shape)
-                dot = torch.matmul(next_obs_packed.data.view(pow.shape[0], 1, self.obs_dim),
-                                   predicted_obs.view(pow.shape[0], self.obs_dim, 1))
+                dot = torch.matmul(next_obs_packed.data.view(pow.shape[0], 1, self.obs_dim+1),
+                                   predicted_obs.view(pow.shape[0], self.obs_dim+1, 1))
                 # print(dot.view(-1).shape)
 
                 next_obs_loss = (pow - 2 * dot).mean()
