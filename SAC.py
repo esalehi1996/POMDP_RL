@@ -633,7 +633,7 @@ class SAC(object):
         # print(list(range(updates)))
         for i_updates in range(updates):
             self.update_to_q += 1
-            batch_burn_in_hist, batch_learn_hist, batch_rewards, batch_learn_len, batch_forward_idx, batch_final_flag, batch_current_act, batch_hidden, batch_burn_in_len, batch_learn_forward_len , batch_next_obs , batch_model_input_act = memory.sample(batch_size)
+            batch_burn_in_hist, batch_learn_hist, batch_rewards, batch_learn_len, batch_forward_idx, batch_final_flag, batch_current_act, batch_hidden, batch_burn_in_len, batch_learn_forward_len , batch_next_obs , batch_model_input_act , batch_model_target_reward = memory.sample(batch_size)
 
 
             # print(batch_burn_in_hist.shape)
@@ -736,33 +736,34 @@ class SAC(object):
 
                 next_obs_loss = (pow - 2 * dot).mean()
 
-                input_psi_acts_packed_reward = pack_padded_sequence(torch_model_input_act, list(batch_learn_len),
-                                                             batch_first=True,
-                                                             enforce_sorted=False)
-                unpacked_ais_z , _ = pad_packed_sequence(ais_z, batch_first=True)
-
-                packed_ais_z_r = pack_padded_sequence(unpacked_ais_z, list(batch_learn_len),
-                                                             batch_first=True,
-                                                             enforce_sorted=False)
-
-                # print(input_psi_acts_packed_reward.data.shape)
-                # print(packed_ais_z_r.data.shape)
-
-                psi_input_r = torch.cat((packed_ais_z_r.data.data, input_psi_acts_packed_reward.data), 1).to(self.device)
-
-                predicted_reward = self.psi.predict_reward(psi_input_r)
-
-
-
+                # input_psi_acts_packed_reward = pack_padded_sequence(torch_model_input_act, list(batch_learn_len),
+                #                                              batch_first=True,
+                #                                              enforce_sorted=False)
+                # unpacked_ais_z , _ = pad_packed_sequence(ais_z, batch_first=True)
                 #
-                target_reward = torch.from_numpy(batch_rewards).to(self.device)
+                # packed_ais_z_r = pack_padded_sequence(unpacked_ais_z, list(batch_learn_len),
+                #                                              batch_first=True,
+                #                                              enforce_sorted=False)
+                #
+                # # print(input_psi_acts_packed_reward.data.shape)
+                # # print(packed_ais_z_r.data.shape)
+                #
+                # psi_input_r = torch.cat((packed_ais_z_r.data.data, input_psi_acts_packed_reward.data), 1).to(self.device)
+
+                predicted_reward = self.psi.predict_reward(psi_input)
+                # print(predicted_reward.shape)
+                # print(psi_input.shape)
+
+                target_reward = torch.from_numpy(batch_model_target_reward).to(self.device)
+                # print(batch_model_target_reward.shape)
 
 
-                packed_target_reward = pack_padded_sequence(target_reward, list(batch_learn_len), batch_first=True,
+                packed_target_reward = pack_padded_sequence(target_reward, list(batch_learn_forward_len), batch_first=True,
                                                      enforce_sorted=False)
                 #
                 # print(packed_target_reward.data.shape)
                 # print(predicted_reward.shape)
+
                 #
                 #
                 reward_loss = F.mse_loss(predicted_reward.view(-1), packed_target_reward.data)
