@@ -63,11 +63,33 @@ class Rec_ReplayMemory:
         tmp = self.position
         if self.full:
             tmp = self.capacity
-        idx = np.random.choice(tmp, batch_size, replace=False)
 
-        batch_lengths = self.buffer_ep_len[idx]
+        # print(tmp,self.buffer_ep_len[:tmp])
+        # print(np.cumsum(self.buffer_ep_len[:tmp]))
 
-        batch_idx = np.random.randint(0, batch_lengths)
+            # print(tmp,self.buffer_ep_len[:tmp])
+            # print(np.cumsum(self.buffer_ep_len[:tmp]))
+        idx_ = np.random.choice(np.cumsum(self.buffer_ep_len[:tmp])[tmp-1], batch_size, replace=False)
+        # print(idx_)
+        ep_idx = np.zeros([batch_size], dtype=np.int32)
+        batch_idx = np.zeros([batch_size], dtype=np.int32)
+        for i in range(batch_size):
+            prev = 0
+            for j,ep_index in enumerate(list(np.cumsum(self.buffer_ep_len[:tmp]))):
+                # print('cumsum',j,ep_index,prev)
+                if idx_[i] < ep_index and idx_[i] >= prev:
+                    # print('true')
+                    ep_idx[i] = j
+                    batch_idx[i] = idx_[i] - prev
+                    break
+                prev = ep_index
+
+
+
+
+        batch_lengths = self.buffer_ep_len[ep_idx]
+
+        # batch_idx = np.random.randint(0, batch_lengths)
 
         # print('batch_lens',batch_lengths)
         # print('batch_idx',batch_idx)
@@ -85,10 +107,10 @@ class Rec_ReplayMemory:
 
         # print('batch_mask', batch_mask)
 
-        batch_obs = torch.from_numpy(self.buffer_states[idx, :max_len + 1])
+        batch_obs = torch.from_numpy(self.buffer_states[ep_idx, :max_len + 1])
 
-        batch_acts = torch.from_numpy(self.buffer_actions[idx, :max_len + 1])
-        batch_rewards = torch.from_numpy(self.buffer_rewards[idx, :max_len + 1])
+        batch_acts = torch.from_numpy(self.buffer_actions[ep_idx, :max_len + 1])
+        batch_rewards = torch.from_numpy(self.buffer_rewards[ep_idx, :max_len + 1])
 
         # print('batch_observations',batch_obs)
         # print('batch_actions',batch_acts)
