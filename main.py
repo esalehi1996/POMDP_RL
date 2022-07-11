@@ -48,6 +48,7 @@ def main():
     parser.add_argument('--learning_obs_len', type=int, default=10)
     parser.add_argument('--forward_len', type=int, default=3)
     parser.add_argument('--replay_type', type=str, default='vanilla')
+    parser.add_argument('--AIS_loss', type=str, default='MMD')
     args = parser.parse_args()
 
     # convert to dictionary

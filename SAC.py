@@ -9,6 +9,9 @@ from torchvision import transforms
 from PIL import Image
 from torch.nn.utils.rnn import pack_padded_sequence, pad_packed_sequence
 import torch.nn.utils.rnn as rnn_utils
+from torch.distributions import Categorical
+from torch.distributions.multivariate_normal import MultivariateNormal
+from torch.distributions.normal import Normal
 import numpy as np
 import math
 import random
@@ -74,7 +77,10 @@ class SAC(object):
         # if self.alg == 'SAC+AIS':
         self.rho = rho_net(num_inputs, action_space.n, self.AIS_state_size).to(self.device)
         self.rho_cpu = rho_net(num_inputs, action_space.n, self.AIS_state_size)
-        self.psi = psi_net(num_inputs, action_space.n, self.AIS_state_size , highdim).to(self.device)
+        if args['AIS_loss'] == 'MMD':
+            self.psi = psi_net(num_inputs, action_space.n, self.AIS_state_size , highdim).to(self.device)
+        elif args['AIS_loss'] == 'KL' and args['env_name'][:8] == 'MiniGrid':
+            self.psi = psi_net_highdim_KL(num_inputs,action_space.n,self.AIS_state_size).to(self.device)
 
         self.critic_optim = Adam(self.critic.parameters(), lr=args['rl_lr'])
         self.policy_optim = Adam(self.policy.parameters(), lr=args['rl_lr'])
@@ -700,41 +706,72 @@ class SAC(object):
                 # print(torch_model_input_act.shape)
                 input_psi_acts_packed = pack_padded_sequence(torch_model_input_act, list(batch_learn_forward_len), batch_first=True,
                                                              enforce_sorted=False)
-                # print(input_psi_acts_packed.data.shape)
-                # # # print(ais_z)
-                # print(ais_z.data.shape)
+
+                # avg = torch.zeros(2,4)
+                # print(avg)
+                # avg[0] = 3.6
+                # avg[1] = -10
+                # print(avg)
+                # std = torch.eye(4)
+                # print(std)
+                # cov = torch.cat((std.unsqueeze(0),std.unsqueeze(0)),0)
+                # print(cov.shape,cov)
+                # cov[0] = cov[0] / 1000
+                # cov[1] = cov[1]
+                # print(cov.shape, cov)
+                # m = MultivariateNormal(avg, cov)
+                # print(m.sample().shape,m.sample())
+
+
 
                 psi_input = torch.cat((ais_z.data, input_psi_acts_packed.data), 1).to(self.device)
 
-
-
-                predicted_obs =  self.psi.predict_obs(psi_input)
-                # print(predicted_obs.shape)
-
                 next_obs = torch.from_numpy(batch_next_obs).to(self.device)
 
-                # print(batch_learn_forward_len)
-                #
-                # print(next_obs.shape, next_obs)
-                # assert False
+
 
                 next_obs_packed = pack_padded_sequence(next_obs, list(batch_learn_forward_len), batch_first=True,
-                                                             enforce_sorted=False)
+                                                       enforce_sorted=False)
 
-                # print(next_obs_packed.data.shape)
-                #
-                #
-                #
-                # print(predicted_obs.shape)
+                if self.args['AIS_loss'] == 'MMD':
+                    predicted_obs = self.psi.predict_obs(psi_input)
 
-                pow = torch.pow(torch.norm(predicted_obs, dim=1), 2)
+                    pow = torch.pow(torch.norm(predicted_obs, dim=1), 2)
 
-                # print(pow.shape)
-                dot = torch.matmul(next_obs_packed.data.view(pow.shape[0], 1, self.obs_dim+1),
-                                   predicted_obs.view(pow.shape[0], self.obs_dim+1, 1))
-                # print(dot.view(-1).shape)
+                    # print(pow.shape)
+                    dot = torch.matmul(next_obs_packed.data.view(pow.shape[0], 1, self.obs_dim + 1),
+                                       predicted_obs.view(pow.shape[0], self.obs_dim + 1, 1))
+                    # print(dot.view(-1).shape)
 
-                next_obs_loss = (pow - 2 * dot).mean()
+                    next_obs_loss = (pow - 2 * dot).mean()
+
+                elif self.args['AIS_loss'] == 'KL' and self.args['env_name'][:8] == 'MiniGrid':
+
+
+
+                    mvg_dist_mean, mvg_dist_std, mvg_dist_mix = self.psi.predict_obs(psi_input)
+
+                    # m = MultivariateNormal(mvg_dist_mean[j - 1, :, d],
+                    #                        torch.diag(bc.mvg_dist_std_estimates[j - 1, :, d]))
+
+                    # print(mvg_dist_mix.shape,mvg_dist_mean.shape,mvg_dist_std.shape)
+                    # print(next_obs_packed.data.shape)
+                    # print(mvg_dist_mean.shape,mvg_dist_std.shape)
+
+                    m = Normal(mvg_dist_mean, mvg_dist_std)
+
+                    # print(m.sample().shape)
+                    target = next_obs_packed.data.unsqueeze(1).expand(-1,mvg_dist_mean.shape[1],-1)
+
+                    # print(m.log_prob(target).shape)
+
+                    mixture_probs = torch.sum(m.log_prob(target), 2) + torch.log(mvg_dist_mix)
+
+                    # print(mixture_probs.shape)
+
+                    next_obs_loss = - torch.logsumexp(mixture_probs, dim=1).mean()
+
+
 
                 # input_psi_acts_packed_reward = pack_padded_sequence(torch_model_input_act, list(batch_learn_len),
                 #                                              batch_first=True,

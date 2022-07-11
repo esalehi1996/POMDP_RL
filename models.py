@@ -69,6 +69,47 @@ class psi_net(nn.Module):
         return self.fc2_r(x_r)
 
 
+class psi_net_highdim_KL(nn.Module):
+    def __init__(self, obs_latent_space_size, num_actions, AIS_state_size = 5, num_components = 5):
+        super(psi_net_highdim_KL, self).__init__()
+        self.obs_latent_space_size = obs_latent_space_size
+        input_ndims = AIS_state_size + num_actions
+        self.eps = 1e-6
+        self.num_components = num_components
+        self.softmax = nn.Softmax(dim=0)
+
+        self.fc1_r = nn.Linear(input_ndims, AIS_state_size//2)
+        self.fc2_r = nn.Linear(AIS_state_size//2, 1)
+
+        self.fc1_d = nn.Linear(input_ndims, AIS_state_size//2)
+        self.fc2_d_mean = nn.Linear(AIS_state_size//2, obs_latent_space_size*num_components)
+        self.fc2_d_std = nn.Linear(AIS_state_size//2, obs_latent_space_size*num_components)
+        self.fc2_d_mix = nn.Linear(AIS_state_size//2, num_components)
+
+    def forward(self, x):
+        x_r = torch.relu(self.fc1_r(x))
+        reward = self.fc2_r(x_r)
+
+        x_d = torch.relu(self.fc1_d(x))
+        mvg_dist_mean = self.fc2_d_mean(x_d)
+        mvg_dist_std = F.elu(self.fc2_d_std(x_d)) + 1. + self.eps
+        mvg_dist_mix = self.softmax(self.fc2_d_mix(x_d))
+        return reward, mvg_dist_mean, mvg_dist_std, mvg_dist_mix
+
+    def predict_obs(self,x):
+        x_d = torch.relu(self.fc1_d(x))
+        mvg_dist_mean = self.fc2_d_mean(x_d)
+        mvg_dist_std = F.elu(self.fc2_d_std(x_d)) + 1. + self.eps
+        mvg_dist_mix = self.softmax(self.fc2_d_mix(x_d))
+        return mvg_dist_mean.reshape(-1,self.num_components,self.obs_latent_space_size), mvg_dist_std.reshape(-1,self.num_components,self.obs_latent_space_size), mvg_dist_mix
+
+    def predict_reward(self,x):
+        x_r = torch.relu(self.fc1_r(x))
+        reward = self.fc2_r(x_r)
+        return reward
+
+
+
 class policy_net(nn.Module):
     def __init__(self, num_actions, AIS_state_size=5, exploration_temp=1.):
         super(policy_net, self).__init__()

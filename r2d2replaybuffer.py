@@ -17,10 +17,17 @@ class r2d2_ReplayMemory:
         self.forward_len = args['forward_len']
         self.AIS_state_size = args['AIS_state_size']
         self.batch_size = args['batch_size']
+        self.highdim = False
+        if args['env_name'][:8] == 'MiniGrid':
+            self.highdim = True
         self.buffer_burn_in_history = np.zeros([self.capacity, self.burn_in_len , self.obs_dim + self.act_dim], dtype=np.float32)
         self.buffer_learning_history = np.zeros([self.capacity, self.learning_obs_len + self.forward_len, self.obs_dim + self.act_dim], dtype=np.float32)
         self.buffer_current_act = np.zeros([self.capacity, self.learning_obs_len], dtype=np.int32)
-        self.buffer_next_obs = np.zeros([self.capacity, self.learning_obs_len + self.forward_len, self.obs_dim+1], dtype=np.float32)
+        if self.highdim:
+            self.buffer_next_obs = np.zeros([self.capacity, self.learning_obs_len + self.forward_len, self.obs_dim], dtype=np.float32)
+        else:
+            self.buffer_next_obs = np.zeros([self.capacity, self.learning_obs_len + self.forward_len, self.obs_dim + 1],
+                                            dtype=np.float32)
         self.buffer_model_input_act = np.zeros([self.capacity, self.learning_obs_len + self.forward_len, self.act_dim], dtype=np.float32)
         # self.buffer_burn_in_actions = np.zeros([self.capacity, self.burn_in_len , self.act_dim], dtype=np.float32)
         # self.buffer_learning_actions = np.zeros([self.capacity, self.learning_obs_len + self.forward_len, self.act_dim], dtype=np.float32)
@@ -61,10 +68,10 @@ class r2d2_ReplayMemory:
         # print(len(ep_hiddens))
         #
         # print(ep_states[0].shape)
-        # print(len(ep_states), ep_states)
-        # print(len(ep_actions), ep_actions)
-        # print(len(ep_rewards), ep_rewards)
-        #
+        # print(len(ep_states), ep_states[0].shape)
+        # # print(len(ep_actions), ep_actions)
+        # # print(len(ep_rewards), ep_rewards)
+        # #
         # assert False
         # for i in range(len(ep_states)):
         #     print(i,ep_states[i],ep_actions[i],ep_rewards[i])
@@ -77,11 +84,15 @@ class r2d2_ReplayMemory:
         for i in range(len(ep_actions)):
             ls_actions_[i][ep_actions[i]] = 1
 
-
-        ls_next_obs = [np.zeros(self.obs_dim+1) for i in range(len(ep_states))]
-        for i in range(len(ep_states)-1):
-            ls_next_obs[i][:self.obs_dim] = ep_states[i+1]
-        ls_next_obs[len(ep_states)-1][self.obs_dim] = 1
+        if self.highdim:
+            ls_next_obs = [np.zeros(self.obs_dim) for i in range(len(ep_states))]
+            for i in range(len(ep_states) - 1):
+                ls_next_obs[i] = ep_states[i + 1]
+        else:
+            ls_next_obs = [np.zeros(self.obs_dim+1) for i in range(len(ep_states))]
+            for i in range(len(ep_states)-1):
+                ls_next_obs[i][:self.obs_dim] = ep_states[i+1]
+            ls_next_obs[len(ep_states)-1][self.obs_dim] = 1
         # for i in range(len(ep_states)):
         #     print(i,ep_states[i],ls_next_obs[i],ep_actions[i],ep_rewards[i])
         # for i in range(len(ep_actions)):
