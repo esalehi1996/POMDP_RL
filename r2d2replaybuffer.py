@@ -39,6 +39,7 @@ class r2d2_ReplayMemory:
         self.buffer_learning_len = np.zeros([self.capacity], dtype=np.int32)
         self.buffer_learn_forward_len = np.zeros([self.capacity], dtype=np.int32)
         self.buffer_hidden = (torch.zeros(self.capacity , self.AIS_state_size) , torch.zeros(self.capacity , self.AIS_state_size))
+        self.buffer_gammas = np.zeros([self.capacity, self.learning_obs_len], dtype=np.float32)
         # self.buffer_full_ep_states = np.zeros([self.capacity, self.max_seq_len , self.obs_dim], dtype=np.float32)
         # self.buffer_full_ep_actions = np.zeros([self.capacity, self.max_seq_len], dtype=np.int32)
         # self.buffer_full_ep_rewards = np.zeros([self.capacity, self.max_seq_len], dtype=np.float32)
@@ -145,14 +146,18 @@ class r2d2_ReplayMemory:
 
         # for i, hidden in enumerate(learning_obs_list):
         #     print(i,hidden)
+        ep_rewards_ = ep_rewards[:len(ep_rewards)-1]
+        # print(ep_rewards_)
 
 
-        discounted_sum = [[sum_rewards(ep_rewards[x+y:x+y+self.forward_len],self.gamma) for y in range(0,min(self.learning_obs_len, len(ep_states)-x))] for x in range(0, len(ep_states) , self.learning_obs_len)]
+        discounted_sum = [[sum_rewards(ep_rewards_[x+y:x+y+self.forward_len],self.gamma) if x+y != len(ep_rewards_) else ep_rewards[x+y] for y in range(0,min(self.learning_obs_len, len(ep_states)-x))] for x in range(0, len(ep_states) , self.learning_obs_len)]
         # print(discounted_sum)
+        # if len(ep_rewards_)
         # for i in range(len(hidden_list)):
         #     print(i,len(learning_act_list[i]))
         for i in range(len(hidden_list)):
             # print('-------------',i,'---------------')
+            # print(discounted_sum[i])
             # print(self.position_r2d2)
             # print(np.array(burn_in_act_list[i]).shape)
             # print(np.array(burn_in_obs_list[i]).shape)
@@ -175,9 +180,12 @@ class r2d2_ReplayMemory:
             self.buffer_current_act[self.position_r2d2, :len(current_act_list[i])] = np.array(current_act_list[i])
             self.buffer_model_input_act[self.position_r2d2,:len(model_input_act_list[i]),:] = np.array(model_input_act_list[i])
             self.buffer_forward_idx[self.position_r2d2,:len(discounted_sum[i])] = np.array([min(j+self.forward_len,len(learning_obs_list[i])-1) for j in range(len(discounted_sum[i]))])
-            self.buffer_final_flag[self.position_r2d2,:len(discounted_sum[i])] = np.array([int(i*self.learning_obs_len + self.forward_len + j < len(ep_states)) for j in range(len(discounted_sum[i]))])
+            self.buffer_final_flag[self.position_r2d2,:len(discounted_sum[i])] = np.array([int(i*self.learning_obs_len +  j < len(ep_states) -1 ) for j in range(len(discounted_sum[i]))])
+            self.buffer_gammas[self.position_r2d2,:len(discounted_sum[i])] = np.array([self.gamma ** (min(j+self.forward_len,len(learning_obs_list[i])-1) - j) for j in range(len(discounted_sum[i]))])
+            # print(self.buffer_gammas[self.position_r2d2,:len(discounted_sum[i])])
             # print(self.buffer_forward_idx[self.position_r2d2])
             # print(self.buffer_final_flag[self.position_r2d2])
+            # print([min(j+self.forward_len,len(learning_obs_list[i])-1) - j for j in range(len(discounted_sum[i]))])
             # print(self.buffer_burn_in_history[self.position_r2d2, :len(burn_in_act_list[i]), :])
             # print('----learning')
             # print(np.concatenate((np.array(learning_obs_list[i]), np.array(learning_act_list[i])), axis=1))
@@ -285,12 +293,12 @@ class r2d2_ReplayMemory:
         batch_next_obs = self.buffer_next_obs[idx]
         batch_model_input_act = self.buffer_model_input_act[idx]
         batch_model_target_reward = self.buffer_model_target_rewards[idx]
+        batch_gammas = self.buffer_gammas[idx]
 
         # print(batch_hidden)
 
-        # assert False
 
-        return batch_burn_in_hist, batch_learn_hist, batch_rewards, batch_learn_len, batch_forward_idx, batch_final_flag, batch_current_act , batch_hidden , batch_burn_in_len , batch_learn_forward_len , batch_next_obs , batch_model_input_act , batch_model_target_reward
+        return batch_burn_in_hist, batch_learn_hist, batch_rewards, batch_learn_len, batch_forward_idx, batch_final_flag, batch_current_act , batch_hidden , batch_burn_in_len , batch_learn_forward_len , batch_next_obs , batch_model_input_act , batch_model_target_reward , batch_gammas
 
     # def sample_full_ep(self, batch_size):
     #     idx = np.random.choice(self.max_full_ep_size, batch_size, replace=False)

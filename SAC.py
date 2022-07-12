@@ -639,7 +639,7 @@ class SAC(object):
         # print(list(range(updates)))
         for i_updates in range(updates):
             self.update_to_q += 1
-            batch_burn_in_hist, batch_learn_hist, batch_rewards, batch_learn_len, batch_forward_idx, batch_final_flag, batch_current_act, batch_hidden, batch_burn_in_len, batch_learn_forward_len , batch_next_obs , batch_model_input_act , batch_model_target_reward = memory.sample(batch_size)
+            batch_burn_in_hist, batch_learn_hist, batch_rewards, batch_learn_len, batch_forward_idx, batch_final_flag, batch_current_act, batch_hidden, batch_burn_in_len, batch_learn_forward_len , batch_next_obs , batch_model_input_act , batch_model_target_reward , batch_gammas = memory.sample(batch_size)
 
 
             # print(batch_burn_in_hist.shape)
@@ -768,8 +768,22 @@ class SAC(object):
                     mixture_probs = torch.sum(m.log_prob(target), 2) + torch.log(mvg_dist_mix)
 
                     # print(mixture_probs.shape)
+                    #
+                    # print(mixture_probs)
+                    #
+                    # print(torch.max(mixture_probs, dim = -1 , keepdim=True)[0].shape)
 
-                    next_obs_loss = - torch.logsumexp(mixture_probs, dim=1).mean()
+                    g_log_probs = mixture_probs - torch.max(mixture_probs, dim = -1 , keepdim=True)[0]
+
+                    max_probs = torch.max(mixture_probs, dim = -1 , keepdim=True)[0].squeeze()
+
+                    # print(mixture_probs - torch.max(mixture_probs, dim = -1 , keepdim=True)[0])
+                    #
+                    # print(torch.logsumexp(mixture_probs, dim=1).shape)
+
+                    next_obs_loss = - (torch.logsumexp(g_log_probs, dim=1) + max_probs).mean()
+
+                    # assert False
 
 
 
@@ -901,8 +915,11 @@ class SAC(object):
                 # print(qf_target.shape)
 
                 batch_rewards = torch.from_numpy(batch_rewards).to(self.device)
+                batch_gammas = torch.from_numpy(batch_gammas).to(self.device)
 
                 packed_reward = pack_padded_sequence(batch_rewards, list(batch_learn_len), batch_first=True,
+                                           enforce_sorted=False)
+                packed_gammas = pack_padded_sequence(batch_gammas, list(batch_learn_len), batch_first=True,
                                            enforce_sorted=False)
 
                 # print(packed_reward.data.shape)
@@ -917,7 +934,7 @@ class SAC(object):
                 # print(packed_final.data.shape)
 
 
-                next_q_value = packed_reward.data + (self.gamma ** self.args['forward_len']) *  packed_final.data * qf_target.view(-1)
+                next_q_value = packed_reward.data + packed_gammas.data *  packed_final.data * qf_target.view(-1)
 
 
                 # print(next_q_value.shape)
