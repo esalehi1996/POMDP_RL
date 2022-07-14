@@ -76,7 +76,7 @@ class psi_net_highdim_KL(nn.Module):
         input_ndims = AIS_state_size + num_actions
         self.eps = 1e-6
         self.num_components = num_components
-        self.softmax = nn.Softmax(dim=0)
+        self.softmax = nn.Softmax(dim=1)
 
         self.fc1_r = nn.Linear(input_ndims, AIS_state_size//2)
         self.fc2_r = nn.Linear(AIS_state_size//2, 1)

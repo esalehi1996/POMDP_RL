@@ -175,6 +175,9 @@ class SAC(object):
                 sample = random.random()
                 if sample < eps_threshold and evaluate is False:
                     return torch.tensor([[random.randrange(self.act_dim)]],dtype=torch.long).cpu().numpy()[0][0] , hidden_p
+                if sample < self.args['test_epsilon'] and evaluate is True:
+                    return torch.tensor([[random.randrange(self.act_dim)]], dtype=torch.long).cpu().numpy()[0][
+                               0], hidden_p
             if self.rl_alg == 'SAC':
                 action, pi, _ = self.policy_cpu.sample(ais_z.detach())
                 # print(action)
@@ -767,7 +770,7 @@ class SAC(object):
 
                     mixture_probs = torch.sum(m.log_prob(target), 2) + torch.log(mvg_dist_mix)
 
-                    # print(mixture_probs.shape)
+                    # print(mvg_dist_mix.shape,mvg_dist_mix)
                     #
                     # print(mixture_probs)
                     #
