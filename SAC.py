@@ -3,6 +3,7 @@ import os
 from models import *
 from autoencoder.simple_autoencoder import autoencoder
 import torch
+torch.autograd.set_detect_anomaly(True)
 import torch.nn.functional as F
 from torch.optim import Adam
 from torchvision import transforms
