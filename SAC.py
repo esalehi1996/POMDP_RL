@@ -757,14 +757,14 @@ class SAC(object):
                     # m = MultivariateNormal(mvg_dist_mean[j - 1, :, d],
                     #                        torch.diag(bc.mvg_dist_std_estimates[j - 1, :, d]))
 
-                    # print(mvg_dist_mix.shape,mvg_dist_mean.shape,mvg_dist_std.shape)
-                    # print(next_obs_packed.data.shape)
-                    # print(mvg_dist_mean.shape,mvg_dist_std.shape)
+
 
                     m = Normal(mvg_dist_mean, mvg_dist_std)
 
                     # print(m.sample().shape)
                     target = next_obs_packed.data.unsqueeze(1).expand(-1,mvg_dist_mean.shape[1],-1)
+
+
 
                     # print(m.log_prob(target).shape)
 
@@ -772,7 +772,9 @@ class SAC(object):
 
                     # print(mvg_dist_mix.shape,mvg_dist_mix)
                     #
-                    # print(mixture_probs)
+
+
+                    entropy = torch.sum(mvg_dist_mix*torch.log(mvg_dist_mix),1)
                     #
                     # print(torch.max(mixture_probs, dim = -1 , keepdim=True)[0].shape)
 
@@ -782,9 +784,9 @@ class SAC(object):
 
                     # print(mixture_probs - torch.max(mixture_probs, dim = -1 , keepdim=True)[0])
                     #
-                    # print(torch.logsumexp(mixture_probs, dim=1).shape)
 
-                    next_obs_loss = - (torch.logsumexp(g_log_probs, dim=1) + max_probs).mean()
+
+                    next_obs_loss = - (torch.logsumexp(g_log_probs, dim=1) + max_probs + entropy).mean()
 
                     # assert False
 
