@@ -770,7 +770,7 @@ class SAC(object):
 
                     mixture_probs = torch.sum(m.log_prob(target), 2) + torch.log(mvg_dist_mix)
 
-                    print(mvg_dist_mix.shape,mvg_dist_mix)
+                    # print(mvg_dist_mix.shape,mvg_dist_mix)
                     #
 
 
