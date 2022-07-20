@@ -1,3 +1,4 @@
+import bisect
 from copy import deepcopy
 import random
 import torch
@@ -59,6 +60,15 @@ class Rec_ReplayMemory:
 
         self.position = (self.position + 1) % self.capacity
 
+        tmp = self.position
+        if self.full:
+            tmp = self.capacity
+        self.cumsum_np = np.cumsum(self.buffer_ep_len[:tmp])
+        self.cumsum_ls = list(self.cumsum_np)
+        self.cumsum_ls_with_zero = [0] + self.cumsum_ls
+
+
+
     def sample(self, batch_size):
         tmp = self.position
         if self.full:
@@ -69,20 +79,34 @@ class Rec_ReplayMemory:
 
             # print(tmp,self.buffer_ep_len[:tmp])
             # print(np.cumsum(self.buffer_ep_len[:tmp]))
-        idx_ = np.random.choice(np.cumsum(self.buffer_ep_len[:tmp])[tmp-1], batch_size, replace=False)
+        idx_ = np.random.choice(self.cumsum_np[tmp-1], batch_size, replace=False)
         # print(idx_)
-        ep_idx = np.zeros([batch_size], dtype=np.int32)
-        batch_idx = np.zeros([batch_size], dtype=np.int32)
-        for i in range(batch_size):
-            prev = 0
-            for j,ep_index in enumerate(list(np.cumsum(self.buffer_ep_len[:tmp]))):
-                # print('cumsum',j,ep_index,prev)
-                if idx_[i] < ep_index and idx_[i] >= prev:
-                    # print('true')
-                    ep_idx[i] = j
-                    batch_idx[i] = idx_[i] - prev
-                    break
-                prev = ep_index
+        # ep_idx = np.zeros([batch_size], dtype=np.int32)
+        # batch_idx = np.zeros([batch_size], dtype=np.int32)
+        #
+        # print(idx_)
+        # print(list(np.cumsum(self.buffer_ep_len[:tmp])))
+        # for i in range(batch_size):
+        #     prev = 0
+        #     for j,ep_index in enumerate(list(np.cumsum(self.buffer_ep_len[:tmp]))):
+        #         # print('cumsum',j,ep_index,prev)
+        #         if idx_[i] < ep_index and idx_[i] >= prev:
+        #             # print('true')
+        #             ep_idx[i] = j
+        #             batch_idx[i] = idx_[i] - prev
+        #             break
+        #         prev = ep_index
+        #
+        # print(ep_idx)
+        # print(batch_idx)
+
+        # print([bisect.bisect(list(np.cumsum(self.buffer_ep_len[:tmp])),idx) for idx in idx_])
+        ep_idx = np.array([bisect.bisect(self.cumsum_ls,idx) for idx in idx_])
+        batch_idx = idx_ - np.array(self.cumsum_ls_with_zero)[ep_idx]
+
+        # print(idx_ - np.array(self.cumsum_ls_with_zero)[bs] - batch_idx)
+        # print(bs - ep_idx)
+        # print(batch_idx)
 
 
 
