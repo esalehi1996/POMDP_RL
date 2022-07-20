@@ -643,7 +643,7 @@ class SAC(object):
         # print(list(range(updates)))
         for i_updates in range(updates):
             self.update_to_q += 1
-            batch_burn_in_hist, batch_learn_hist, batch_rewards, batch_learn_len, batch_forward_idx, batch_final_flag, batch_current_act, batch_hidden, batch_burn_in_len, batch_learn_forward_len , batch_next_obs , batch_model_input_act , batch_model_target_reward , batch_gammas = memory.sample(batch_size)
+            batch_burn_in_hist, batch_learn_hist, batch_rewards, batch_learn_len, batch_forward_idx, batch_final_flag, batch_current_act , batch_hidden , batch_burn_in_len , batch_learn_forward_len , batch_next_obs , batch_model_input_act , batch_model_target_reward , batch_gammas , batch_final_flag_for_model = memory.sample(batch_size)
 
 
             # print(batch_burn_in_hist.shape)
@@ -751,6 +751,15 @@ class SAC(object):
 
                 elif self.args['AIS_loss'] == 'KL' and self.args['env_name'][:8] == 'MiniGrid':
 
+                    batch_final_flag_for_model = torch.from_numpy(batch_final_flag_for_model).to(self.device)
+
+                    batch_final_flag_for_model_packed = pack_padded_sequence(batch_final_flag_for_model, list(batch_learn_forward_len), batch_first=True,
+                                                           enforce_sorted=False)
+
+                    # print(batch_final_flag_for_model_packed.data.shape,batch_final_flag_for_model_packed.data)
+
+
+
 
 
                     mvg_dist_mean, mvg_dist_std, mvg_dist_mix = self.psi.predict_obs(psi_input)
@@ -784,10 +793,9 @@ class SAC(object):
                     max_probs = torch.max(mixture_probs, dim = -1 , keepdim=True)[0].squeeze()
 
                     # print(mixture_probs - torch.max(mixture_probs, dim = -1 , keepdim=True)[0])
-                    #
 
 
-                    next_obs_loss = - (torch.logsumexp(g_log_probs, dim=1) + max_probs).mean()
+                    next_obs_loss = - ((torch.logsumexp(g_log_probs, dim=1) + max_probs) * batch_final_flag_for_model_packed.data ).mean()
 
                     # assert False
 
