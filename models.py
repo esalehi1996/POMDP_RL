@@ -70,7 +70,7 @@ class psi_net(nn.Module):
 
 
 class psi_net_highdim_KL(nn.Module):
-    def __init__(self, obs_latent_space_size, num_actions, AIS_state_size = 5, num_components = 5):
+    def __init__(self, obs_latent_space_size, num_actions, AIS_state_size = 5, num_components = 20):
         super(psi_net_highdim_KL, self).__init__()
         self.obs_latent_space_size = obs_latent_space_size
         input_ndims = AIS_state_size + num_actions
