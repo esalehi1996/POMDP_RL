@@ -79,6 +79,7 @@ class Rec_ReplayMemory:
 
             # print(tmp,self.buffer_ep_len[:tmp])
             # print(np.cumsum(self.buffer_ep_len[:tmp]))
+
         idx_ = np.random.choice(self.cumsum_np[tmp-1], batch_size, replace=False)
         # print(idx_)
         # ep_idx = np.zeros([batch_size], dtype=np.int32)
