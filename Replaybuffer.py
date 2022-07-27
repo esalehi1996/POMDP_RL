@@ -16,6 +16,8 @@ class Rec_ReplayMemory:
         self.buffer_actions = np.zeros([self.capacity, self.max_seq_len + 1], dtype=np.int32)
         self.buffer_rewards = np.zeros([self.capacity, self.max_seq_len + 1], dtype=np.float32)
         self.buffer_ep_len = np.zeros([self.capacity], dtype=np.int32)
+        self.cumsum_np = np.zeros([self.capacity], dtype=np.int32)
+        self.cumsum_np_with_zero = np.zeros([self.capacity+1], dtype=np.int32)
 
         self.position = 0
 
@@ -45,6 +47,7 @@ class Rec_ReplayMemory:
         # print('a',np_states.shape , np_states)
         np_actions = np.array(ep_actions)
         np_rewards = np.array(ep_rewards)
+        last_val = self.buffer_ep_len[self.position]
         self.buffer_ep_len[self.position] = len(ep_states)
         self.buffer_states[self.position, : , :] = np.zeros([self.max_seq_len+1, self.obs_dim], dtype=np.float32)
         self.buffer_actions[self.position, :] = np.zeros([self.max_seq_len+1], dtype=np.int32)
@@ -54,6 +57,19 @@ class Rec_ReplayMemory:
         self.buffer_rewards[self.position, :len(ep_states)] = np_rewards
 
         # print('b',self.buffer_states[self.position,:,:].shape,self.buffer_states[self.position,:,:])
+        if self.full is False and self.position == 0:
+            self.cumsum_np[self.position] = len(ep_states)
+            self.cumsum_np_with_zero[self.position+1] = len(ep_states)
+        if self.full is False and self.position != 0:
+            self.cumsum_np[self.position] = len(ep_states) + self.cumsum_np[self.position-1]
+            self.cumsum_np_with_zero[self.position + 1] = len(ep_states) + self.cumsum_np[self.position-1]
+        if self.full is True:
+            # print(self.position,(len(ep_states) - last_val) )
+            # print(self.buffer_ep_len)
+            # print(self.cumsum_np)
+            self.cumsum_np[self.position:] += (len(ep_states) - last_val)
+            # print(self.cumsum_np)
+            self.cumsum_np_with_zero[self.position + 1:] += (len(ep_states) - last_val)
 
         if self.full == False and self.position + 1 == self.capacity:
             self.full = True
@@ -63,9 +79,15 @@ class Rec_ReplayMemory:
         tmp = self.position
         if self.full:
             tmp = self.capacity
-        self.cumsum_np = np.cumsum(self.buffer_ep_len[:tmp])
-        self.cumsum_ls = list(self.cumsum_np)
-        self.cumsum_ls_with_zero = [0] + self.cumsum_ls
+        # cumsum_np = np.cumsum(self.buffer_ep_len[:tmp])
+        # self.cumsum_ls = list(cumsum_np)
+        # self.cumsum_ls_with_zero = [0] + self.cumsum_ls
+        # print('----')
+        # print(len(self.cumsum_ls_with_zero),tmp)
+        # print(self.cumsum_np[:tmp] - cumsum_np)
+        # print(self.cumsum_np_with_zero[:tmp+1] - np.array(self.cumsum_ls_with_zero))
+        # print(self.cumsum_ls_with_zero)
+        # print(self.cumsum_np_with_zero[:self.position+1])
 
 
 
@@ -102,8 +124,30 @@ class Rec_ReplayMemory:
         # print(batch_idx)
 
         # print([bisect.bisect(list(np.cumsum(self.buffer_ep_len[:tmp])),idx) for idx in idx_])
-        ep_idx = np.array([bisect.bisect(self.cumsum_ls,idx) for idx in idx_])
-        batch_idx = idx_ - np.array(self.cumsum_ls_with_zero)[ep_idx]
+        # import time
+        # start = time.process_time()
+        # your code here
+        # ep_idx = np.array([bisect.bisect(self.cumsum_ls,idx) for idx in idx_])
+        # # print(ep_idx)
+        # checkpoint_1 = time.process_time()
+        ep_idx = np.searchsorted(self.cumsum_np[:tmp],idx_,'right')
+
+        # print(ep_idx)
+
+
+
+
+        # checkpoint_2 = time.process_time()
+        # #
+        # print(checkpoint_1-start)
+        # print(checkpoint_2-checkpoint_1)
+
+        batch_idx = idx_ - self.cumsum_np_with_zero[ep_idx]
+
+        # print(batch_idx + self.cumsum_np_with_zero[ep_idx] - idx_)
+
+
+        # assert False
 
         # print(idx_ - np.array(self.cumsum_ls_with_zero)[bs] - batch_idx)
         # print(bs - ep_idx)
