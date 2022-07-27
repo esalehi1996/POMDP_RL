@@ -77,6 +77,7 @@ class psi_net_highdim_KL(nn.Module):
         self.eps = 1e-6
         self.num_components = num_components
         self.softmax = nn.Softmax(dim=1)
+        self.activation = nn.LeakyReLU(0.1)
 
         self.fc1_r = nn.Linear(input_ndims, AIS_state_size//2)
         self.fc2_r = nn.Linear(AIS_state_size//2, 1)
@@ -87,10 +88,10 @@ class psi_net_highdim_KL(nn.Module):
         self.fc2_d_mix = nn.Linear(AIS_state_size//2, num_components)
 
     def forward(self, x):
-        x_r = torch.relu(self.fc1_r(x))
+        x_r = self.activation(self.fc1_r(x))
         reward = self.fc2_r(x_r)
 
-        x_d = torch.relu(self.fc1_d(x))
+        x_d = self.activation(self.fc1_d(x))
         mvg_dist_mean = self.fc2_d_mean(x_d)
         mvg_dist_std = F.elu(self.fc2_d_std(x_d)) + 1. + self.eps
         mvg_dist_mix = self.softmax(self.fc2_d_mix(x_d))

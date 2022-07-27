@@ -969,7 +969,7 @@ class SAC(object):
             if self.model_alg == 'AIS':
                 total_model_loss.backward()
                 if self.args['AIS_loss'] == 'KL':
-                    torch.nn.utils.clip_grad_norm_(list(self.rho.parameters()) + list(self.psi.parameters()), max_norm = 2.0 , error_if_nonfinite = True)
+                    torch.nn.utils.clip_grad_norm_(list(self.rho.parameters()) + list(self.psi.parameters()), max_norm = 1.0 , error_if_nonfinite = True)
                 self.AIS_optimizer.step()
             qf_loss.backward()
             self.critic_optim.step()
