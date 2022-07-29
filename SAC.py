@@ -778,7 +778,7 @@ class SAC(object):
 
 
 
-                    assert False
+
 
                 elif self.args['AIS_loss'] == 'KL' and self.args['env_name'][:8] == 'MiniGrid':
 
