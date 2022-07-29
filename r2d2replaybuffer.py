@@ -143,7 +143,7 @@ class r2d2_ReplayMemory:
             if hidden is None:
                 hidden_list[i] = (torch.zeros( self.AIS_state_size),torch.zeros(self.AIS_state_size))
             else:
-                hidden_list[i] = (hidden[0].view(-1),hidden[1].view(-1))
+                hidden_list[i] = (hidden[0].cpu().view(-1),hidden[1].cpu().view(-1))
 
         # for i, hidden in enumerate(learning_obs_list):
         #     print(i,hidden)

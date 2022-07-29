@@ -8,12 +8,17 @@ from torch.nn.utils.rnn import pack_padded_sequence, pad_packed_sequence
 
 
 class rho_net(nn.Module):
-    def __init__(self, num_obs, num_actions, AIS_state_size=5):
+    def __init__(self, num_obs, num_actions, AIS_state_size=5 , QL_VAE_disable = False):
         super(rho_net, self).__init__()
+        self.QL_VAE_disable = QL_VAE_disable
         input_ndims = num_obs + num_actions
         # input_ndims = num_obs
         self.AIS_state_size = AIS_state_size
-        self.fc1 = nn.Linear(input_ndims, AIS_state_size)
+        if QL_VAE_disable:
+            self.fc1 = nn.Linear(input_ndims, AIS_state_size)
+            self.fc2 = nn.Linear(AIS_state_size, AIS_state_size)
+        else:
+            self.fc1 = nn.Linear(input_ndims, AIS_state_size)
         self.lstm1 = nn.LSTM(AIS_state_size, AIS_state_size, batch_first=True)
 
         self.apply(weights_init_)
@@ -23,7 +28,11 @@ class rho_net(nn.Module):
             hidden = (torch.zeros(1, batch_size, self.AIS_state_size).to(device),
                       torch.zeros(1, batch_size, self.AIS_state_size).to(device))
         # print(x.shape,batch_lengths)
-        x = F.elu(self.fc1(x))
+        if self.QL_VAE_disable:
+            x = F.elu(self.fc1(x))
+            x = F.elu(self.fc2(x))
+        else:
+            x = F.elu(self.fc1(x))
         if batch_size > 1 and replay_type == 'r2d2':
             x = pack_padded_sequence(x, batch_lengths, batch_first=True,enforce_sorted=False)
             # print('packed',x.data.shape)
@@ -49,6 +58,8 @@ class psi_net(nn.Module):
         else:
             self.fc2_d = nn.Linear(AIS_state_size // 2, num_obs+1)
         self.highdim = highdim
+
+        self.apply(weights_init_)
 
     def forward(self, x):
         x_r = F.elu(self.fc1_r(x))
@@ -96,6 +107,8 @@ class psi_net_highdim_KL(nn.Module):
         self.fc2_d_mean = nn.Linear(AIS_state_size//2, obs_latent_space_size*num_components)
         self.fc2_d_std = nn.Linear(AIS_state_size//2, obs_latent_space_size*num_components)
         self.fc2_d_mix = nn.Linear(AIS_state_size//2, num_components)
+
+        self.apply(weights_init_)
 
     def forward(self, x):
         x_r = self.activation(self.fc1_r(x))

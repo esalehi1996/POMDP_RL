@@ -55,14 +55,18 @@ class SAC(object):
             # print(autoencoder_path)
             # print(os.path.join(autoencoder_path, 'autoencoder_final.pth'))
             # print('gggg')
-            self.autoencoder_model = autoencoder(True)
+            self.autoencoder_model = autoencoder(True).to(self.device)
             self.autoencoder_model.load_state_dict(
                 torch.load(os.path.join(autoencoder_path, 'autoencoder_final.pth'), map_location=self.device))
             self.observation_mean = torch.load(os.path.join(autoencoder_path, 'mean.pt'))
             self.observation_scaler = torch.load(os.path.join(autoencoder_path, 'max_vals.pt')) * 1.2
             self.transform = transforms.Compose([transforms.ToTensor(), transforms.Normalize(self.observation_mean, self.observation_scaler)])
             num_inputs = self.autoencoder_model.latent_space_size
+            if args['QL_VAE_disable']:
+                num_inputs = env.reset()['image'].reshape(-1).shape[0]
             self.obs_dim = num_inputs
+
+
 
 
         self.policy = policy_net(action_space.n, self.AIS_state_size).to(self.device)
@@ -72,12 +76,12 @@ class SAC(object):
         self.critic = QNetwork_discrete(self.AIS_state_size, action_space.n, args['hidden_size'] , double).to(device=self.device)
         self.critic_target = QNetwork_discrete(self.AIS_state_size, action_space.n, args['hidden_size'] , double).to(self.device)
 
-        self.policy_cpu = policy_net(action_space.n, self.AIS_state_size)
-        self.q_cpu = QNetwork_discrete(self.AIS_state_size, action_space.n, args['hidden_size'] , double)
+        # self.policy_cpu = policy_net(action_space.n, self.AIS_state_size)
+        # self.q_cpu = QNetwork_discrete(self.AIS_state_size, action_space.n, args['hidden_size'] , double)
 
         # if self.alg == 'SAC+AIS':
-        self.rho = rho_net(num_inputs, action_space.n, self.AIS_state_size).to(self.device)
-        self.rho_cpu = rho_net(num_inputs, action_space.n, self.AIS_state_size)
+        self.rho = rho_net(num_inputs, action_space.n, self.AIS_state_size , args['QL_VAE_disable']).to(self.device)
+        # self.rho_cpu = rho_net(num_inputs, action_space.n, self.AIS_state_size)
         if args['AIS_loss'] == 'MMD':
             self.psi = psi_net(num_inputs, action_space.n, self.AIS_state_size , highdim).to(self.device)
         elif args['AIS_loss'] == 'KL' and args['env_name'][:8] == 'MiniGrid':
@@ -104,9 +108,9 @@ class SAC(object):
         # self.AIS_q_optim = Adam(self.rho_q.parameters() , lr=args.rnn_lr)
         # self.AIS_p_optim = Adam(self.rho_policy.parameters() , lr=args.rnn_lr)
         hard_update(self.critic_target, self.critic)
-        hard_update(self.q_cpu, self.critic)
-        hard_update(self.rho_cpu, self.rho)
-        hard_update(self.policy_cpu, self.policy)
+        # hard_update(self.q_cpu, self.critic)
+        # hard_update(self.rho_cpu, self.rho)
+        # hard_update(self.policy_cpu, self.policy)
         self.update_to_q = 0
         if self.rl_alg == 'QL':
             self.eps_greedy_parameters = {
@@ -135,8 +139,14 @@ class SAC(object):
         obs = self.transform(obs)
         obs = obs.reshape(-1)
         # print(obs)
-        # print(self.autoencoder_model)
-        encoded_obs = self.autoencoder_model(obs, getLatent=True).cpu().detach()
+        # print(self.autoencoder_model
+        if self.args['QL_VAE_disable'] == False:
+            obs = obs.to(self.device)
+            encoded_obs = self.autoencoder_model(obs, getLatent=True).cpu().detach()
+        else:
+            encoded_obs = obs
+
+
         return encoded_obs
 
 
@@ -157,10 +167,10 @@ class SAC(object):
                 action = convert_int_to_onehot(action, self.action_space.n)
                 reward = torch.Tensor([reward])
             # state = convert_int_to_onehot(state, self.state_size) this is what was commented ***
-            rho_input = torch.cat((state, action)).reshape(1, 1, -1)
+            rho_input = torch.cat((state, action)).reshape(1, 1, -1).to(self.device)
             # print('rho_in',rho_input)
             # if self.alg == 'SAC+AIS':
-            ais_z, hidden_p = self.rho_cpu(rho_input, 1, hidden_p, 'cpu' , [] , self.args['replay_type'])
+            ais_z, hidden_p = self.rho(rho_input, 1, hidden_p, self.device , [] , self.args['replay_type'])
             # if self.alg == 'SAC':
             #     ais_z, hidden_p = self.rho_policy(rho_input, 1, hidden_p)
             # print('ais',ais_z)
@@ -180,16 +190,16 @@ class SAC(object):
                     return torch.tensor([[random.randrange(self.act_dim)]], dtype=torch.long).cpu().numpy()[0][
                                0], hidden_p
             if self.rl_alg == 'SAC':
-                action, pi, _ = self.policy_cpu.sample(ais_z.detach())
+                action, pi, _ = self.policy.sample(ais_z.detach())
                 # print(action)
                 # raise "Error"
             if self.rl_alg == 'QL':
                 # print(qf.shape,qf)
                 if self.args['replay_type'] == 'vanilla':
-                    qf1 , qf2 = self.q_cpu(ais_z.detach())
+                    qf1 , qf2 = self.critic(ais_z.detach())
                     qf = (torch.min(qf1, qf2))
                 else:
-                    qf = self.q_cpu(ais_z.detach())
+                    qf = self.critic(ais_z.detach())
                 # print(qf.max(1)[1])
                 max_ac = qf.max(1)[1]
 
@@ -454,7 +464,7 @@ class SAC(object):
             losses[i_update] = model_loss
 
         losses = losses.mean()
-        hard_update(self.rho_cpu, self.rho)
+        # hard_update(self.rho_cpu, self.rho)
         return losses.detach().cpu().item()
 
     def update_parameters_vanilla(self, memory, batch_size, updates):
@@ -625,10 +635,10 @@ class SAC(object):
             policy_losses = policy_losses.mean()
         if self.rl_alg == 'QL':
             policy_losses = torch.zeros(1)
-        hard_update(self.policy_cpu, self.policy)
-        hard_update(self.q_cpu, self.critic)
-        if self.model_alg == 'None':
-            hard_update(self.rho_cpu, self.rho)
+        # # hard_update(self.policy_cpu, self.policy)
+        # # hard_update(self.q_cpu, self.critic)
+        # if self.model_alg == 'None':
+        #     hard_update(self.rho_cpu, self.rho)
 
 
         return qf_losses.item(), policy_losses.item()
@@ -1026,10 +1036,10 @@ class SAC(object):
         #     policy_losses = policy_losses.mean()
         if self.rl_alg == 'QL':
             policy_losses = torch.zeros(1)
-        hard_update(self.policy_cpu, self.policy)
-        hard_update(self.q_cpu, self.critic)
-        # if self.model_alg == 'None':
-        hard_update(self.rho_cpu, self.rho)
+        # hard_update(self.policy_cpu, self.policy)
+        # hard_update(self.q_cpu, self.critic)
+        # # if self.model_alg == 'None':
+        # hard_update(self.rho_cpu, self.rho)
 
         return qf_losses.item(), policy_losses.item() , model_losses
 
