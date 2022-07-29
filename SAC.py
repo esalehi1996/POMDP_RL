@@ -737,24 +737,50 @@ class SAC(object):
                 next_obs_packed = pack_padded_sequence(next_obs, list(batch_learn_forward_len), batch_first=True,
                                                        enforce_sorted=False)
 
+                batch_final_flag_for_model = torch.from_numpy(batch_final_flag_for_model).to(self.device)
+
+                batch_final_flag_for_model_packed = pack_padded_sequence(batch_final_flag_for_model,
+                                                                         list(batch_learn_forward_len),
+                                                                         batch_first=True,
+                                                                         enforce_sorted=False)
+
                 if self.args['AIS_loss'] == 'MMD':
                     predicted_obs = self.psi.predict_obs(psi_input)
 
                     pow = torch.pow(torch.norm(predicted_obs, dim=1), 2)
 
-                    # print(pow.shape)
-                    dot = torch.matmul(next_obs_packed.data.view(pow.shape[0], 1, self.obs_dim + 1),
-                                       predicted_obs.view(pow.shape[0], self.obs_dim + 1, 1))
-                    # print(dot.view(-1).shape)
 
-                    next_obs_loss = (pow - 2 * dot).mean()
+
+
+                    if self.args['env_name'][:8] == 'MiniGrid':
+                        dot = torch.matmul(next_obs_packed.data.view(pow.shape[0], 1, self.obs_dim),
+                                           predicted_obs.view(pow.shape[0], self.obs_dim, 1))
+                        next_obs_loss = ((pow - 2 * dot.view(-1)) * batch_final_flag_for_model_packed.data).mean()
+
+                        # print(batch_final_flag_for_model_packed.data)
+
+                        predicted_final_flag = self.psi.predict_final_flag(psi_input)
+
+                        final_flag_loss = F.binary_cross_entropy_with_logits(predicted_final_flag.reshape(-1),
+                                                                             batch_final_flag_for_model_packed.data.float())
+
+
+
+                        next_obs_loss += final_flag_loss
+
+                    else:
+                        dot = torch.matmul(next_obs_packed.data.view(pow.shape[0], 1, self.obs_dim + 1),
+                                           predicted_obs.view(pow.shape[0], self.obs_dim + 1, 1))
+
+
+
+                        next_obs_loss = (pow - 2 * dot.view(-1)).mean()
+
+
+
+                    assert False
 
                 elif self.args['AIS_loss'] == 'KL' and self.args['env_name'][:8] == 'MiniGrid':
-
-                    batch_final_flag_for_model = torch.from_numpy(batch_final_flag_for_model).to(self.device)
-
-                    batch_final_flag_for_model_packed = pack_padded_sequence(batch_final_flag_for_model, list(batch_learn_forward_len), batch_first=True,
-                                                           enforce_sorted=False)
 
                     # print(batch_final_flag_for_model_packed.data.shape,batch_final_flag_for_model_packed.data)
 
@@ -797,8 +823,15 @@ class SAC(object):
 
                     next_obs_loss = - ((torch.logsumexp(g_log_probs, dim=1) + max_probs) * batch_final_flag_for_model_packed.data ).mean()
 
-                    # assert False
+                    predicted_final_flag = self.psi.predict_final_flag(psi_input)
 
+                    final_flag_loss = F.binary_cross_entropy_with_logits(predicted_final_flag.reshape(-1) , batch_final_flag_for_model_packed.data.float())
+
+                    next_obs_loss += final_flag_loss
+
+
+
+                    # assert False
 
 
                 # input_psi_acts_packed_reward = pack_padded_sequence(torch_model_input_act, list(batch_learn_len),

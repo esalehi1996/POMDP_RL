@@ -39,13 +39,15 @@ class psi_net(nn.Module):
         super(psi_net, self).__init__()
         input_ndims = AIS_state_size + num_actions
         self.softmax = nn.Softmax(dim=1)
-        self.fc1_r = nn.Linear(input_ndims, int(AIS_state_size / 2))
-        self.fc1_d = nn.Linear(input_ndims, int(AIS_state_size / 2))
-        self.fc2_r = nn.Linear(int(AIS_state_size / 2), 1)
+        self.fc1_r = nn.Linear(input_ndims, int(AIS_state_size // 2))
+        self.fc1_d = nn.Linear(input_ndims, int(AIS_state_size // 2))
+        self.fc2_r = nn.Linear(AIS_state_size // 2, 1)
         if highdim is True:
-            self.fc2_d = nn.Linear(int(AIS_state_size / 2), num_obs)
+            self.fc2_d = nn.Linear(AIS_state_size // 2, num_obs)
+            self.fc1_f = nn.Linear(input_ndims, AIS_state_size // 2)
+            self.fc2_f = nn.Linear(AIS_state_size // 2, 1)
         else:
-            self.fc2_d = nn.Linear(int(AIS_state_size / 2), num_obs+1)
+            self.fc2_d = nn.Linear(AIS_state_size // 2, num_obs+1)
         self.highdim = highdim
 
     def forward(self, x):
@@ -68,6 +70,11 @@ class psi_net(nn.Module):
         x_r = F.elu(self.fc1_r(x))
         return self.fc2_r(x_r)
 
+    def predict_final_flag(self,x):
+        x_f = F.elu(self.fc1_f(x))
+        final_flag = self.fc2_f(x_f)
+        return final_flag
+
 
 class psi_net_highdim_KL(nn.Module):
     def __init__(self, obs_latent_space_size, num_actions, AIS_state_size = 5, num_components = 20):
@@ -81,6 +88,9 @@ class psi_net_highdim_KL(nn.Module):
 
         self.fc1_r = nn.Linear(input_ndims, AIS_state_size//2)
         self.fc2_r = nn.Linear(AIS_state_size//2, 1)
+
+        self.fc1_f = nn.Linear(input_ndims, AIS_state_size // 2)
+        self.fc2_f = nn.Linear(AIS_state_size // 2, 1)
 
         self.fc1_d = nn.Linear(input_ndims, AIS_state_size//2)
         self.fc2_d_mean = nn.Linear(AIS_state_size//2, obs_latent_space_size*num_components)
@@ -98,16 +108,21 @@ class psi_net_highdim_KL(nn.Module):
         return reward, mvg_dist_mean, mvg_dist_std, mvg_dist_mix
 
     def predict_obs(self,x):
-        x_d = torch.relu(self.fc1_d(x))
+        x_d = self.activation(self.fc1_d(x))
         mvg_dist_mean = self.fc2_d_mean(x_d)
         mvg_dist_std = F.elu(self.fc2_d_std(x_d)) + 1. + self.eps
         mvg_dist_mix = self.softmax(self.fc2_d_mix(x_d))
         return mvg_dist_mean.reshape(-1,self.num_components,self.obs_latent_space_size), mvg_dist_std.reshape(-1,self.num_components,self.obs_latent_space_size), mvg_dist_mix
 
     def predict_reward(self,x):
-        x_r = torch.relu(self.fc1_r(x))
+        x_r = self.activation(self.fc1_r(x))
         reward = self.fc2_r(x_r)
         return reward
+
+    def predict_final_flag(self,x):
+        x_f = self.activation(self.fc1_f(x))
+        final_flag = self.fc2_f(x_f)
+        return final_flag
 
 
 
