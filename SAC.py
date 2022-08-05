@@ -231,14 +231,8 @@ class SAC(object):
         # print(range(updates))
         for i_update in range(updates):
             # print('model_update')
-            batch_input_obs, batch_target_obs , batch_acts, batch_rewards, batch_lengths , _ = memory.sample_full_ep(batch_size)
+            batch_input_obs, batch_target_obs , batch_acts, batch_rewards, batch_lengths , batch_final_flag , _ = memory.sample_full_ep(batch_size)
 
-
-            # print('obs',batch_input_obs.shape,batch_input_obs)
-            # print('target_obs',batch_target_obs.shape,batch_target_obs)
-            # print('acts',batch_acts.shape,batch_acts)
-            # print('rewards',batch_rewards.shape,batch_rewards)
-            # print('lengths',batch_lengths)
             #
             # print('list',list(batch_lengths))
 
@@ -262,6 +256,7 @@ class SAC(object):
             # print('rho_input',rho_input.shape , rho_input)
 
 
+
             # packed_rho_input = pack_padded_sequence(rho_input, list(batch_lengths), batch_first=True, enforce_sorted=False)
             #
             # print('rho_input_packed',packed_rho_input )
@@ -281,17 +276,17 @@ class SAC(object):
 
 
             # print('hidden',hidden.shape,hidden)
-            # print('ais_z',ais_z.shape, ais_z)
+            # print('ais_z',ais_z.data.shape)
 
             input_psi_acts = F.one_hot(batch_acts.to((torch.int64)), num_classes=self.act_dim).to(self.device)
 
             # print(batch_lengths)
-            # print(input_psi_acts.shape,input_psi_acts)
+            # print('input_psi_acts',input_psi_acts.shape,input_psi_acts)
 
             input_psi_acts_packed = pack_padded_sequence(input_psi_acts, list(batch_lengths), batch_first=True,enforce_sorted=False)
 
             # print(input_psi_acts_packed)
-            # print(input_psi_acts_packed.data.shape)
+            # print('input_psi_acts',input_psi_acts_packed.data,input_psi_acts_packed.data.shape)
             # print(ais_z.data.shape)
 
 
@@ -301,7 +296,8 @@ class SAC(object):
 
             psi_input = torch.cat((ais_z.data, input_psi_acts_packed.data), 1).to(self.device)
 
-            # print(psi_input.shape)
+            # print('psi_input',psi_input.shape,psi_input)
+
 
             reward_est = self.psi.predict_reward(psi_input)
 
@@ -311,43 +307,10 @@ class SAC(object):
 
             # print(packed_batch_rewards)
             # print(packed_batch_rewards.data.shape)
-            # print(packed_batch_rewards.data)
             # print(torch.sign(packed_batch_rewards.data)*torch.pow(torch.abs(packed_batch_rewards.data),0.5)/5)
-            # assert False
 
             reward_loss = F.mse_loss(reward_est.view(-1), packed_batch_rewards.data)
-            # reward_loss = F.mse_loss(reward_est.view(-1), torch.sign(packed_batch_rewards.data)*torch.pow(torch.abs(packed_batch_rewards.data),0.5)/5)
 
-            # print(reward_loss)
-
-            # unpacked_ais_z , lens_unpacked = pad_packed_sequence(ais_z, batch_first=True )
-            #
-            # # print(unpacked_ais_z)
-            # # print(unpacked_ais_z.data.shape)
-            # # print(lens_unpacked)
-            #
-            # ais_z = unpacked_ais_z[:,:unpacked_ais_z.shape[1]-1,:]
-            #
-            # # print(ais_z.shape)
-            #
-            # batch_lengths_ = [e - 1 for e in list(batch_lengths)]
-            # # print(batch_lengths_)
-            # ais_z_packed = pack_padded_sequence(ais_z,batch_lengths_, batch_first=True,enforce_sorted=False)
-            #
-            # # print(ais_z_packed)
-            # # print(ais_z_packed.data.shape)
-            # #
-            # # print(input_psi_acts.shape, input_psi_acts)
-            #
-            # input_psi_acts_packed = pack_padded_sequence(input_psi_acts, batch_lengths_, batch_first=True,
-            #                                              enforce_sorted=False)
-            #
-            # # print(input_psi_acts_packed)
-            # # print(input_psi_acts_packed.data.shape)
-            #
-            # psi_input = torch.cat((ais_z_packed.data, input_psi_acts_packed.data), 1).to(self.device)
-
-            # print(psi_input.shape)
 
             obs_probs = self.psi.predict_obs(psi_input)
 
@@ -360,97 +323,34 @@ class SAC(object):
             true_obs_packed = pack_padded_sequence(true_obs, batch_lengths, batch_first=True,
                                                          enforce_sorted=False)
 
-            # print(true_obs_packed)
-            # print(true_obs_packed.data.shape)
-
 
             pow = torch.pow(torch.norm(obs_probs, dim=1), 2)
+            # print(pow)
 
-            # print('ggg',pow.shape,pow)
             # print(true_obs_packed.data,obs_probs)
-            dot = torch.matmul(true_obs_packed.data.view(pow.shape[0],1,self.obs_dim+1), obs_probs.view(pow.shape[0],self.obs_dim+1,1))
-            # print(dot.shape,dot.view(-1))
-
-            next_obs_loss = (pow - 2 * dot.view(-1)).mean()
+            # dot = torch.matmul(true_obs_packed.data.view(pow.shape[0],1,self.obs_dim+1), obs_probs.view(pow.shape[0],self.obs_dim+1,1))
+            # print(dot.view(-1))
+            #
+            # next_obs_loss = (pow - 2 * dot.view(-1)).mean()
 
             # print(next_obs_loss)
-
-
-            model_loss = next_obs_loss * self.Lambda + reward_loss * (1 - self.Lambda)
             # print('model_loss' , model_loss)
 
+            if self.args['env_name'][:8] == 'MiniGrid':
+                # print(batch_final_flag)
+                batch_final_flag_packed = pack_padded_sequence(batch_final_flag,batch_lengths,batch_first=True,enforce_sorted=False).to(self.device)
+                # print(batch_final_flag_packed.data)
+                dot = torch.matmul(true_obs_packed.data.view(pow.shape[0], 1, self.obs_dim),
+                                   obs_probs.view(pow.shape[0], self.obs_dim, 1))
+                next_obs_loss = ((pow - 2 * dot.view(-1)) * batch_final_flag_packed.data).mean()
 
+            else:
+                dot = torch.matmul(true_obs_packed.data.view(pow.shape[0], 1, self.obs_dim + 1),
+                                   obs_probs.view(pow.shape[0], self.obs_dim + 1, 1))
 
+                next_obs_loss = (pow - 2 * dot.view(-1)).mean()
 
-
-
-
-
-
-            # print(dot.view(-1))
-            # print(true_obs_packed.data)
-            # print(obs_probs)
-            # dot = dot.view(batch_size, max_len - 1)
-
-
-
-            # assert False
-            # # packed_batch_rewards.data = obs_probs
-            #
-            # # seq_unpacked, lens_unpacked = pad_packed_sequence(packed_batch_rewards, batch_first=True)
-            # #
-            # # print(seq_unpacked.shape,seq_unpacked)
-            # # print(lens_unpacked)
-            # #
-            # #
-            # # x = rnn_utils.PackedSequence(data= obs_probs, batch_sizes = lens_unpacked , sorted_indices= packed_batch_rewards.sorted_indices, unsorted_indices= packed_batch_rewards.unsorted_indices)
-            # #
-            # # print(x)
-            # #
-            # # x_unpacked, lens_unpacked = pad_packed_sequence(x, batch_first=True )
-            # #
-            # # print(x_unpacked.shape)
-            # # print(lens_unpacked)
-            #
-            #
-            #
-            # assert False
-            #
-            # # print('reward_estimate',reward_est.shape,reward_est)
-            # # print('true_rewards',batch_rewards.shape,batch_rewards)
-            #
-            # # print('predicted obs probs',obs_probs.shape,obs_probs)
-            # # print('true_obs',true_obs.shape,true_obs)
-            # # print('true_obs reshaped',true_obs.reshape(-1,1,self.obs_dim).float().shape,true_obs.reshape(-1,1,self.obs_dim).float())
-            # obs_probs = obs_probs[:, :obs_probs.shape[1] - 1, :]
-            #
-            # # print('predicted obs probs minus the last one',obs_probs.shape,obs_probs)
-            #
-            # # print(torch.pow(torch.norm(obs_probs,dim = 2),2).shape)
-            # pow = torch.pow(torch.norm(obs_probs, dim=2), 2)
-            # dot = torch.matmul(true_obs.view(batch_size, max_len - 1, 1, self.obs_dim).float(),
-            #                    obs_probs.view(batch_size, max_len - 1, self.obs_dim, 1))
-            # dot = dot.view(batch_size, max_len - 1)
-            #
-            # # next_obs_loss = torch.pow(torch.norm(obs_probs,dim = 2),2) - 2*torch.bmm(true_obs.view(-1,1,self.obs_dim).float(), obs_probs.view(-1,self.obs_dim,1)).view(-1)
-            # mask = torch.ones((batch_size, max_len)).to(self.device)
-            # for i in range(batch_size):
-            #     mask[i, batch_lengths[i]:] = 0
-            # # print(mask.shape,mask)
-            # # print(mask[:,1:].shape,mask[:,1:])
-            # # print(mask[:,batch_lengths])
-            #
-            # next_obs_loss = pow - 2 * dot
-            # #  print(next_obs_loss.shape,next_obs_loss)
-            # next_obs_loss = next_obs_loss * mask[:, 1:]
-            # #  print(next_obs_loss.shape,next_obs_loss)
-            # #  print(batch_lengths)
-            # #  print(batch_rewards.shape,batch_rewards)
-            # next_obs_loss = next_obs_loss.mean()
-            # # print(next_obs_loss.shape,next_obs_loss)
-            # reward_loss = F.mse_loss(reward_est.view(batch_size, max_len) * mask, batch_rewards * mask)
-            # # print(reward_loss.shape,reward_loss)
-            # model_loss = next_obs_loss * self.Lambda + reward_loss * (1 - self.Lambda)
+            model_loss = next_obs_loss * self.Lambda + reward_loss * (1 - self.Lambda)
 
             self.AIS_optimizer.zero_grad()
             model_loss.backward()
@@ -656,8 +556,7 @@ class SAC(object):
             batch_burn_in_hist, batch_learn_hist, batch_rewards, batch_learn_len, batch_forward_idx, batch_final_flag, batch_current_act , batch_hidden , batch_burn_in_len , batch_learn_forward_len , batch_next_obs , batch_model_input_act , batch_model_target_reward , batch_gammas , batch_final_flag_for_model = memory.sample(batch_size)
 
 
-            # print(batch_burn_in_hist.shape)
-            # print(batch_learn_hist.shape)
+
             # print(batch_rewards.shape)
             # print(batch_learn_len)
             # print(batch_burn_in_len)

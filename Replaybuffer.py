@@ -7,14 +7,23 @@ import torch.nn.functional as F
 
 
 class Rec_ReplayMemory:
-    def __init__(self, capacity, obs_dim, act_dim, max_sequence_length):
+    def __init__(self, capacity, obs_dim, act_dim, max_sequence_length , args):
+
+        self.highdim = False
+        if args['env_name'][:8] == 'MiniGrid':
+            self.highdim = True
         self.capacity = capacity
         self.max_seq_len = max_sequence_length
         self.obs_dim = obs_dim
         self.act_dim = act_dim
+        if self.highdim:
+            self.buffer_next_obs = np.zeros([self.capacity, self.max_seq_len + 1, self.obs_dim], dtype=np.float32)
+        else:
+            self.buffer_next_obs = np.zeros([self.capacity, self.max_seq_len + 1, self.obs_dim + 1], dtype=np.float32)
         self.buffer_states = np.zeros([self.capacity, self.max_seq_len + 1 , self.obs_dim], dtype=np.float32)
         self.buffer_actions = np.zeros([self.capacity, self.max_seq_len + 1], dtype=np.int32)
         self.buffer_rewards = np.zeros([self.capacity, self.max_seq_len + 1], dtype=np.float32)
+        self.buffer_final_flag = np.ones([self.capacity, self.max_seq_len + 1], dtype=np.float32)
         self.buffer_ep_len = np.zeros([self.capacity], dtype=np.int32)
         self.cumsum_np = np.zeros([self.capacity], dtype=np.int32)
         self.cumsum_np_with_zero = np.zeros([self.capacity+1], dtype=np.int32)
@@ -42,7 +51,20 @@ class Rec_ReplayMemory:
         # self.buffer_actions[self.position] = deepcopy(ep_actions)
         # self.buffer_rewards[self.position] = deepcopy(ep_rewards)
         # self.buffer_true_states[self.position] = deepcopy(ep_true_states)
-        # print(ep_states)
+
+        if self.highdim:
+            ls_next_obs = [np.zeros(self.obs_dim) for i in range(len(ep_states))]
+            for i in range(len(ep_states) - 1):
+                ls_next_obs[i] = ep_states[i + 1]
+            self.buffer_next_obs[self.position, :, :] = np.zeros([self.max_seq_len + 1, self.obs_dim], dtype=np.float32)
+            self.buffer_next_obs[self.position, :len(ls_next_obs)] = np.array(ls_next_obs)
+        else:
+            ls_next_obs = [np.zeros(self.obs_dim+1) for i in range(len(ep_states))]
+            for i in range(len(ep_states)-1):
+                ls_next_obs[i][:self.obs_dim] = ep_states[i+1]
+            ls_next_obs[len(ep_states)-1][self.obs_dim] = 1
+            self.buffer_next_obs[self.position, :, :] = np.zeros([self.max_seq_len + 1, self.obs_dim+1], dtype=np.float32)
+            self.buffer_next_obs[self.position, :len(ls_next_obs)] = np.array(ls_next_obs)
         np_states = np.array(ep_states)
         # print('a',np_states.shape , np_states)
         np_actions = np.array(ep_actions)
@@ -55,6 +77,9 @@ class Rec_ReplayMemory:
         self.buffer_states[self.position, :len(ep_states)] = np_states
         self.buffer_actions[self.position, :len(ep_states)] = np_actions
         self.buffer_rewards[self.position, :len(ep_states)] = np_rewards
+        self.buffer_final_flag[self.position, len(ep_states)-1] = 0
+
+
 
         # print('b',self.buffer_states[self.position,:,:].shape,self.buffer_states[self.position,:,:])
         if self.full is False and self.position == 0:
@@ -194,17 +219,19 @@ class Rec_ReplayMemory:
         idx = np.random.choice(tmp, batch_size, replace=False)
 
         batch_lengths = self.buffer_ep_len[idx]
-        # print(batch_lengths)
 
         max_len = np.amax(batch_lengths)
 
         # print(np.amax(batch_lengths))
 
         batch_input_obs = torch.from_numpy(self.buffer_states[idx, :max_len])
-        batch_target_obs = np.zeros([batch_size, max_len , self.obs_dim+1], dtype=np.float32)
-        batch_target_obs[:,:max_len-1,:self.obs_dim] = self.buffer_states[idx, 1:max_len]
-        for i in range(batch_size):
-            batch_target_obs[i,batch_lengths[i]-1,-1] = 1
+        # batch_target_obs = np.zeros([batch_size, max_len , self.obs_dim+1], dtype=np.float32)
+        batch_target_obs = self.buffer_next_obs[idx,:max_len]
+
+
+        # batch_target_obs[:,:max_len-1,:self.obs_dim] = self.buffer_states[idx, 1:max_len]
+        # for i in range(batch_size):
+        #     batch_target_obs[i,batch_lengths[i]-1,-1] = 1
 
 
         batch_target_obs = torch.from_numpy(batch_target_obs)
@@ -220,7 +247,8 @@ class Rec_ReplayMemory:
         batch_acts = torch.from_numpy(self.buffer_actions[idx, :max_len])
         # batch_acts = torch.from_numpy(self.buffer_actions[idx,1:max_len])
         batch_rewards = torch.from_numpy(self.buffer_rewards[idx, :max_len])
-        return batch_input_obs , batch_target_obs, batch_acts, batch_rewards, batch_lengths, max_len
+        batch_final_flag = torch.from_numpy(self.buffer_final_flag[idx, :max_len])
+        return batch_input_obs , batch_target_obs, batch_acts, batch_rewards, batch_lengths, batch_final_flag ,  max_len
 
     def __len__(self):
         if self.full:

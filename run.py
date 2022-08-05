@@ -52,7 +52,7 @@ def run_exp(args):
         state_size = env.observation_space.n
         print(env.action_space, state_size)
     if args['replay_type'] == 'vanilla':
-        memory = Rec_ReplayMemory(args['replay_size'], state_size, env.action_space.n, max_env_steps)
+        memory = Rec_ReplayMemory(args['replay_size'], state_size, env.action_space.n, max_env_steps , args)
         print('vanilla')
     if args['replay_type'] == 'r2d2':
         memory = r2d2_ReplayMemory(args['replay_size'], state_size, env.action_space.n, max_env_steps, args)

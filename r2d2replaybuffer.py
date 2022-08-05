@@ -95,6 +95,8 @@ class r2d2_ReplayMemory:
             for i in range(len(ep_states)-1):
                 ls_next_obs[i][:self.obs_dim] = ep_states[i+1]
             ls_next_obs[len(ep_states)-1][self.obs_dim] = 1
+        # print(ls_next_obs)
+        # assert False
         # for i in range(len(ep_states)):
         #     print(i,ep_states[i],ls_next_obs[i],ep_actions[i],ep_rewards[i])
         # for i in range(len(ep_actions)):
