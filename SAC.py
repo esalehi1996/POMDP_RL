@@ -668,14 +668,14 @@ class SAC(object):
 
                         # print(batch_final_flag_for_model_packed.data)
 
-                        predicted_final_flag = self.psi.predict_final_flag(psi_input)
-
-                        final_flag_loss = F.binary_cross_entropy_with_logits(predicted_final_flag.reshape(-1),
-                                                                             batch_final_flag_for_model_packed.data.float())
-
-
-
-                        next_obs_loss += final_flag_loss
+                        # predicted_final_flag = self.psi.predict_final_flag(psi_input)
+                        #
+                        # final_flag_loss = F.binary_cross_entropy_with_logits(predicted_final_flag.reshape(-1),
+                        #                                                      batch_final_flag_for_model_packed.data.float())
+                        #
+                        #
+                        #
+                        # next_obs_loss += final_flag_loss
 
                     else:
                         dot = torch.matmul(next_obs_packed.data.view(pow.shape[0], 1, self.obs_dim + 1),

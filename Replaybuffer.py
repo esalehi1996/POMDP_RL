@@ -101,9 +101,9 @@ class Rec_ReplayMemory:
 
         self.position = (self.position + 1) % self.capacity
 
-        tmp = self.position
-        if self.full:
-            tmp = self.capacity
+        # tmp = self.position
+        # if self.full:
+        #     tmp = self.capacity
         # cumsum_np = np.cumsum(self.buffer_ep_len[:tmp])
         # self.cumsum_ls = list(cumsum_np)
         # self.cumsum_ls_with_zero = [0] + self.cumsum_ls
