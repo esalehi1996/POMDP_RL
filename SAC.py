@@ -167,8 +167,7 @@ class SAC(object):
                 action = convert_int_to_onehot(action, self.action_space.n)
                 reward = torch.Tensor([reward])
             # state = convert_int_to_onehot(state, self.state_size) this is what was commented ***
-            rho_input = torch.cat((state, action)).reshape(1, 1, -1).to(self.device)
-            # print('rho_in',rho_input)
+            rho_input = torch.cat((state, action , reward)).reshape(1, 1, -1).to(self.device)
             # if self.alg == 'SAC+AIS':
             ais_z, hidden_p = self.rho(rho_input, 1, hidden_p, self.device , [] , self.args['replay_type'])
             # if self.alg == 'SAC':
@@ -248,10 +247,18 @@ class SAC(object):
             input_acts = torch.cat((torch.zeros(batch_size, 1, self.act_dim), input_acts), 1).to(self.device)
 
             # print('one_hot_acts',input_acts.shape , input_acts)
+            input_rewards = torch.cat((torch.zeros(batch_size, 1).to(self.device), batch_rewards[:, :batch_rewards.shape[1] - 1]),
+                                      1).view(batch_size, -1, 1).to(self.device)
+
+            rho_input = torch.cat((input_obs, input_acts, input_rewards), 2).to(self.device)
 
 
 
-            rho_input = torch.cat((input_obs, input_acts), 2).to(self.device)
+            # rho_input = torch.cat((input_obs, input_acts), 2).to(self.device)
+
+            # print(rho_input)
+
+            # assert False
 
             # print('rho_input',rho_input.shape , rho_input)
 
@@ -404,8 +411,15 @@ class SAC(object):
             input_acts = torch.cat((torch.zeros(batch_size, 1, self.act_dim), input_acts), 1).to(self.device)
 
             # print('input_acts',input_acts.shape,input_acts)
+            input_rewards = torch.cat((torch.zeros(batch_size, 1), batch_rewards[:,:batch_rewards.shape[1]-1]), 1).view(batch_size,-1,1).to(self.device)
 
-            rho_input = torch.cat((input_obs, input_acts), 2)
+            rho_input = torch.cat((input_obs, input_acts , input_rewards ), 2).to(self.device)
+
+            # print(batch_rewards.shape, batch_rewards)
+            # print(batch_rewards[:,:batch_rewards.shape[1]-1].shape, batch_rewards[:,:batch_rewards.shape[1]-1])
+            # print(torch.cat((torch.zeros(batch_size, 1), batch_rewards[:,:batch_rewards.shape[1]-1]), 1).to(self.device).shape,torch.cat((torch.zeros(batch_size, 1), batch_rewards[:,:batch_rewards.shape[1]-1]), 1).to(self.device))
+            #
+            # print(rho_input.shape,rho_input)
 
             # print('rho_input',rho_input.shape,rho_input)
             hidden = None

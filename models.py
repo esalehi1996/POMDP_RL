@@ -11,7 +11,7 @@ class rho_net(nn.Module):
     def __init__(self, num_obs, num_actions, AIS_state_size=5 , QL_VAE_disable = False):
         super(rho_net, self).__init__()
         self.QL_VAE_disable = QL_VAE_disable
-        input_ndims = num_obs + num_actions
+        input_ndims = num_obs + num_actions + 1
         # input_ndims = num_obs
         self.AIS_state_size = AIS_state_size
         if QL_VAE_disable:

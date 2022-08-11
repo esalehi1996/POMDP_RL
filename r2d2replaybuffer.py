@@ -20,8 +20,8 @@ class r2d2_ReplayMemory:
         self.highdim = False
         if args['env_name'][:8] == 'MiniGrid':
             self.highdim = True
-        self.buffer_burn_in_history = np.zeros([self.capacity, self.burn_in_len , self.obs_dim + self.act_dim], dtype=np.float32)
-        self.buffer_learning_history = np.zeros([self.capacity, self.learning_obs_len + self.forward_len, self.obs_dim + self.act_dim], dtype=np.float32)
+        self.buffer_burn_in_history = np.zeros([self.capacity, self.burn_in_len , self.obs_dim + self.act_dim + 1], dtype=np.float32)
+        self.buffer_learning_history = np.zeros([self.capacity, self.learning_obs_len + self.forward_len, self.obs_dim + self.act_dim + 1], dtype=np.float32)
         self.buffer_current_act = np.zeros([self.capacity, self.learning_obs_len], dtype=np.int32)
         if self.highdim:
             self.buffer_next_obs = np.zeros([self.capacity, self.learning_obs_len + self.forward_len, self.obs_dim], dtype=np.float32)
@@ -75,8 +75,11 @@ class r2d2_ReplayMemory:
         # # print(len(ep_rewards), ep_rewards)
         # #
         # assert False
+        ls_rewards = [0.0] + ep_rewards[:len(ep_rewards)-1]
         # for i in range(len(ep_states)):
-        #     print(i,ep_states[i],ep_actions[i],ep_rewards[i])
+        #     print(i,ep_states[i],ep_actions[i],ep_rewards[i],ls_rewards[i])
+        #
+        # assert False
 
         ls_actions = [np.zeros(self.act_dim) for i in range(len(ep_actions))]
         ls_actions_ = [np.zeros(self.act_dim) for i in range(len(ep_actions))]
@@ -110,6 +113,9 @@ class r2d2_ReplayMemory:
 
         burn_in_act_list = [ls_actions[max(0,x-self.burn_in_len):x] for x in range(0, len(ep_states), self.learning_obs_len)]
         learning_act_list = [ls_actions[x:x + self.learning_obs_len + self.forward_len] for x in range(0, len(ep_states), self.learning_obs_len)]
+
+        burn_in_r_list = [ls_rewards[max(0, x - self.burn_in_len):x] for x in range(0, len(ep_states), self.learning_obs_len)]
+        learning_r_list = [ls_rewards[x:x + self.learning_obs_len + self.forward_len] for x in range(0, len(ep_states), self.learning_obs_len)]
 
         # print(burn_in_act_list)
         # print(learning_act_list)
@@ -164,9 +170,10 @@ class r2d2_ReplayMemory:
             # print(self.position_r2d2)
             # print(np.array(burn_in_act_list[i]).shape)
             # print(np.array(burn_in_obs_list[i]).shape)
+            # print(np.array(burn_in_r_list[i]).reshape(-1,1).shape,np.array(learning_r_list[i]).reshape(-1,1).shape)
             if np.array(burn_in_obs_list[i]).shape[0] != 0:
-                self.buffer_burn_in_history[self.position_r2d2, :len(burn_in_act_list[i]), :] = np.concatenate((np.array(burn_in_obs_list[i]), np.array(burn_in_act_list[i])), axis=1)
-            self.buffer_learning_history[self.position_r2d2, :len(learning_act_list[i]), :] = np.concatenate((np.array(learning_obs_list[i]), np.array(learning_act_list[i])), axis=1)
+                self.buffer_burn_in_history[self.position_r2d2, :len(burn_in_act_list[i]), :] = np.concatenate((np.array(burn_in_obs_list[i]), np.array(burn_in_act_list[i]) , np.array(burn_in_r_list[i]).reshape(-1,1)), axis=1)
+            self.buffer_learning_history[self.position_r2d2, :len(learning_act_list[i]), :] = np.concatenate((np.array(learning_obs_list[i]), np.array(learning_act_list[i]), np.array(learning_r_list[i]).reshape(-1,1)), axis=1)
             # print(self.buffer_learning_history[self.position_r2d2, :len(learning_act_list[i]), :])
             # print(self.buffer_current_act[self.position_r2d2,:,:])
             self.buffer_hidden[0][self.position_r2d2, :] = hidden_list[i][0]
