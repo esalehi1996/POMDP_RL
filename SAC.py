@@ -305,57 +305,96 @@ class SAC(object):
 
             # print('psi_input',psi_input.shape,psi_input)
 
+            if self.args['AIS_loss'] == 'MMD':
+                obs_probs = self.psi.predict_obs(psi_input)
+
+                # print(obs_probs.shape, obs_probs)
+                # #
+                # # print(true_obs.shape)
+                # print(batch_lengths)
+                # print(batch_target_obs)
+
+                true_obs_packed = pack_padded_sequence(true_obs, batch_lengths, batch_first=True,
+                                                             enforce_sorted=False)
+
+
+                pow = torch.pow(torch.norm(obs_probs, dim=1), 2)
+                # print(pow)
+
+                # print(true_obs_packed.data,obs_probs)
+                # dot = torch.matmul(true_obs_packed.data.view(pow.shape[0],1,self.obs_dim+1), obs_probs.view(pow.shape[0],self.obs_dim+1,1))
+                # print(dot.view(-1))
+                #
+                # next_obs_loss = (pow - 2 * dot.view(-1)).mean()
+
+                # print(next_obs_loss)
+                # print('model_loss' , model_loss)
+
+                if self.args['env_name'][:8] == 'MiniGrid':
+                    # print(batch_final_flag)
+                    batch_final_flag_packed = pack_padded_sequence(batch_final_flag,batch_lengths,batch_first=True,enforce_sorted=False).to(self.device)
+                    # print(batch_final_flag_packed.data)
+                    dot = torch.matmul(true_obs_packed.data.view(pow.shape[0], 1, self.obs_dim),
+                                       obs_probs.view(pow.shape[0], self.obs_dim, 1))
+                    next_obs_loss = ((pow - 2 * dot.view(-1)) * batch_final_flag_packed.data).mean()
+
+                else:
+                    dot = torch.matmul(true_obs_packed.data.view(pow.shape[0], 1, self.obs_dim + 1),
+                                       obs_probs.view(pow.shape[0], self.obs_dim + 1, 1))
+
+                    next_obs_loss = (pow - 2 * dot.view(-1)).mean()
+            elif self.args['AIS_loss'] == 'KL' and self.args['env_name'][:8] == 'MiniGrid':
+
+                mvg_dist_mean, mvg_dist_std, mvg_dist_mix = self.psi.predict_obs(psi_input)
+
+                # m = MultivariateNormal(mvg_dist_mean[j - 1, :, d],
+                #                        torch.diag(bc.mvg_dist_std_estimates[j - 1, :, d]))
+
+                m = Normal(mvg_dist_mean, mvg_dist_std)
+
+                # print(m.sample().shape)
+                next_obs_packed = pack_padded_sequence(true_obs, batch_lengths, batch_first=True,
+                                                       enforce_sorted=False)
+                target = next_obs_packed.data.unsqueeze(1).expand(-1, mvg_dist_mean.shape[1], -1)
+
+                # print(m.log_prob(target).shape)
+
+                mixture_probs = torch.sum(m.log_prob(target), 2) + torch.log(mvg_dist_mix)
+
+                # print(mvg_dist_mix.shape,mvg_dist_mix)
+                #
+
+                # entropy = torch.sum(mvg_dist_mix*torch.log(mvg_dist_mix),1)
+                #
+                # print(torch.max(mixture_probs, dim = -1 , keepdim=True)[0].shape)
+
+                g_log_probs = mixture_probs - torch.max(mixture_probs, dim=-1, keepdim=True)[0]
+
+                max_probs = torch.max(mixture_probs, dim=-1, keepdim=True)[0].squeeze()
+
+                # print(mixture_probs - torch.max(mixture_probs, dim = -1 , keepdim=True)[0])
+                batch_final_flag_packed = pack_padded_sequence(batch_final_flag, batch_lengths, batch_first=True,
+                                                               enforce_sorted=False).to(self.device)
+
+                next_obs_loss = - ((torch.logsumexp(g_log_probs,
+                                                    dim=1) + max_probs) * batch_final_flag_packed.data).mean()
+
+
+
+
 
             reward_est = self.psi.predict_reward(psi_input)
 
             # print(reward_est.shape,batch_rewards.shape)
 
-            packed_batch_rewards = pack_padded_sequence(batch_rewards,list(batch_lengths), batch_first=True,enforce_sorted=False)
+            packed_batch_rewards = pack_padded_sequence(batch_rewards, list(batch_lengths), batch_first=True,
+                                                        enforce_sorted=False)
 
             # print(packed_batch_rewards)
             # print(packed_batch_rewards.data.shape)
             # print(torch.sign(packed_batch_rewards.data)*torch.pow(torch.abs(packed_batch_rewards.data),0.5)/5)
 
             reward_loss = F.mse_loss(reward_est.view(-1), packed_batch_rewards.data)
-
-
-            obs_probs = self.psi.predict_obs(psi_input)
-
-            # print(obs_probs.shape, obs_probs)
-            # #
-            # # print(true_obs.shape)
-            # print(batch_lengths)
-            # print(batch_target_obs)
-
-            true_obs_packed = pack_padded_sequence(true_obs, batch_lengths, batch_first=True,
-                                                         enforce_sorted=False)
-
-
-            pow = torch.pow(torch.norm(obs_probs, dim=1), 2)
-            # print(pow)
-
-            # print(true_obs_packed.data,obs_probs)
-            # dot = torch.matmul(true_obs_packed.data.view(pow.shape[0],1,self.obs_dim+1), obs_probs.view(pow.shape[0],self.obs_dim+1,1))
-            # print(dot.view(-1))
-            #
-            # next_obs_loss = (pow - 2 * dot.view(-1)).mean()
-
-            # print(next_obs_loss)
-            # print('model_loss' , model_loss)
-
-            if self.args['env_name'][:8] == 'MiniGrid':
-                # print(batch_final_flag)
-                batch_final_flag_packed = pack_padded_sequence(batch_final_flag,batch_lengths,batch_first=True,enforce_sorted=False).to(self.device)
-                # print(batch_final_flag_packed.data)
-                dot = torch.matmul(true_obs_packed.data.view(pow.shape[0], 1, self.obs_dim),
-                                   obs_probs.view(pow.shape[0], self.obs_dim, 1))
-                next_obs_loss = ((pow - 2 * dot.view(-1)) * batch_final_flag_packed.data).mean()
-
-            else:
-                dot = torch.matmul(true_obs_packed.data.view(pow.shape[0], 1, self.obs_dim + 1),
-                                   obs_probs.view(pow.shape[0], self.obs_dim + 1, 1))
-
-                next_obs_loss = (pow - 2 * dot.view(-1)).mean()
 
             model_loss = next_obs_loss * self.Lambda + reward_loss * (1 - self.Lambda)
 
@@ -746,11 +785,11 @@ class SAC(object):
 
                     next_obs_loss = - ((torch.logsumexp(g_log_probs, dim=1) + max_probs) * batch_final_flag_for_model_packed.data ).mean()
 
-                    predicted_final_flag = self.psi.predict_final_flag(psi_input)
-
-                    final_flag_loss = F.binary_cross_entropy_with_logits(predicted_final_flag.reshape(-1) , batch_final_flag_for_model_packed.data.float())
-
-                    next_obs_loss += final_flag_loss
+                    # predicted_final_flag = self.psi.predict_final_flag(psi_input)
+                    #
+                    # final_flag_loss = F.binary_cross_entropy_with_logits(predicted_final_flag.reshape(-1) , batch_final_flag_for_model_packed.data.float())
+                    #
+                    # next_obs_loss += final_flag_loss
 
 
 
