@@ -37,8 +37,8 @@ parser.add_argument(
 
 args = parser.parse_args()
 
-if not os.path.exists(args.save_folder):
-	os.makedirs(args.save_folder)
+if not os.path.exists(args.env):
+	os.makedirs(args.env)
 
 env = gym.make(args.env)
 if args.agent_view_size is not None:
@@ -50,6 +50,8 @@ img_db = np.expand_dims(env.reset()['image'], axis=0)
 
 
 print (img_db.shape)
+
+
 for n_episode in range(args.num_episodes):
 	print ('Running episode {}'.format(n_episode))
 	done = False
@@ -64,10 +66,10 @@ for n_episode in range(args.num_episodes):
 
 
 # img_db = torch.as_tensor(img_db)
-torch.save(img_db, os.path.join(args.save_folder, 'training.pt'))
+torch.save(img_db, os.path.join(args.env, 'training.pt'))
 print(img_db.shape)
 
-img_db_float = torch.Tensor([img_db[0:100000, :]]).reshape(-1, 3) / 255.0
+img_db_float = torch.Tensor([img_db[:, :]]).reshape(-1, 3) / 255.0
 mean = torch.mean(img_db_float, dim=0)
 std = torch.std(img_db_float, dim=0) + STD_TOL
 max_vals = torch.max(img_db_float, dim=0)[0] + STD_TOL
@@ -76,6 +78,6 @@ print(mean)
 print(std)
 print(max_vals)
 
-torch.save(mean, os.path.join(args.save_folder, 'mean.pt'))
-torch.save(std, os.path.join(args.save_folder, 'std.pt'))
-torch.save(max_vals, os.path.join(args.save_folder, 'max_vals.pt'))
+torch.save(mean, os.path.join(args.env, 'mean.pt'))
+torch.save(std, os.path.join(args.env, 'std.pt'))
+torch.save(max_vals, os.path.join(args.env, 'max_vals.pt'))

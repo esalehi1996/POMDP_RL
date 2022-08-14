@@ -60,21 +60,9 @@ class autoencoder(nn.Module):
         return x
 
 if __name__ == "__main__":
-    from minigrid_datasets import MGER6x6, MGMRN2S4, MGDK6x6, MGER8x8, MGDK8x8, MGFR
-    from minigrid_datasets import MGSCS9N1, MGSCS9N2, MGSCS9N3, MGSCS11N5, MGLCS9N1, MGLCS9N2
-    from minigrid_datasets import MGKCS3R1, MGKCS3R2, MGKCS3R3, MGOM1Dl, MGOM1Dlh, MGOM1Dlhb
+    from minigrid_datasets import ObsGrids7x7
 
     parser = argparse.ArgumentParser()
-    parser.add_argument(
-        "--dataset_name",
-        help="Name of the Dataset based on Task",
-        default='MGER6x6'
-    )
-    parser.add_argument(
-        "--dataset_folder",
-        help="Folder where the rollout data is collected for training the autoencoder",
-        default='rollout_data/MGER6x6'
-    )
     parser.add_argument(
         "--batch_size",
         type=int,
@@ -98,7 +86,7 @@ if __name__ == "__main__":
         help="path for model to start with"
     )
     parser.add_argument(
-        "--save_folder",
+        "--path",
         help="folder to save data in",
         default='models/MGER6x6/ExpName_LatentSize16_withLargeStd_withLowLR_WD'
     )
@@ -106,7 +94,7 @@ if __name__ == "__main__":
         "--use_gpu",
         action="store_true",
         help="GPU selection",
-        default=False
+        default=True
     )
 
     args = parser.parse_args()
@@ -114,57 +102,17 @@ if __name__ == "__main__":
     use_cuda = torch.cuda.is_available() and args.use_gpu
     device = torch.device("cuda" if use_cuda else "cpu")
     
-    if not os.path.exists(args.save_folder):
-        os.makedirs(args.save_folder)
+    if not os.path.exists(args.path):
+        os.makedirs(args.path)
 
     num_epochs = args.num_epochs
     batch_size = args.batch_size
     learning_rate = args.learning_rate
 
-    big_obs_grid = False
-    if args.dataset_name == 'MGER6x6':
-        dataset = MGER6x6(args.dataset_folder)
-    elif args.dataset_name == 'MGMRN2S4':
-        dataset = MGMRN2S4(args.dataset_folder)
-    elif args.dataset_name == 'MGDK6x6':
-        dataset = MGDK6x6(args.dataset_folder)
-    else:
-        big_obs_grid = True
-        # Initially tried environments
-        if args.dataset_name == 'MGER8x8':
-            dataset = MGER8x8(args.dataset_folder)
-        elif args.dataset_name == 'MGDK8x8':
-            dataset = MGDK8x8(args.dataset_folder)
-        elif args.dataset_name == 'MGFR':
-            dataset = MGFR(args.dataset_folder)
-        # Maze Like environments
-        elif args.dataset_name == 'MGSCS9N1':
-            dataset = MGSCS9N1(args.dataset_folder)
-        elif args.dataset_name == 'MGSCS9N2':
-            dataset = MGSCS9N2(args.dataset_folder)
-        elif args.dataset_name == 'MGSCS9N3':
-            dataset = MGSCS9N3(args.dataset_folder)
-        elif args.dataset_name == 'MGSCS11N5':
-            dataset = MGSCS11N5(args.dataset_folder)
-        # Lava Environments (Just the first 2 easier ones)
-        elif args.dataset_name == 'MGLCS9N1':
-            dataset = MGLCS9N1(args.dataset_folder)
-        elif args.dataset_name == 'MGLCS9N2':
-            dataset = MGLCS9N2(args.dataset_folder)
-        # Key corridor environment
-        elif args.dataset_name == 'MGKCS3R1':
-            dataset = MGKCS3R1(args.dataset_folder)
-        elif args.dataset_name == 'MGKCS3R2':
-            dataset = MGKCS3R2(args.dataset_folder)
-        elif args.dataset_name == 'MGKCS3R3':
-            dataset = MGKCS3R3(args.dataset_folder)
-        # Obstructed maze environment
-        elif args.dataset_name == 'MGOM1Dl':
-            dataset = MGOM1Dl(args.dataset_folder)
-        elif args.dataset_name == 'MGOM1Dlh':
-            dataset = MGOM1Dlh(args.dataset_folder)
-        elif args.dataset_name == 'MGOM1Dlhb':
-            dataset = MGOM1Dlhb(args.dataset_folder)
+
+    big_obs_grid = True
+
+    dataset = ObsGrids7x7(args.path)
 
     dataloader = DataLoader(dataset, batch_size=batch_size, shuffle=True)
 
@@ -211,9 +159,9 @@ if __name__ == "__main__":
         if epoch % 5 == 0:
             # pic = to_img(output.cpu().data)
             # save_image(pic, './mlp_img/image_{}.png'.format(epoch))
-            torch.save(model.state_dict(), os.path.join(args.save_folder, 'autoencoder_{}.pth'.format(epoch)))
+            torch.save(model.state_dict(), os.path.join(args.path, 'autoencoder_final.pth'))
     
     total_time = time.time() - start_time
     print ('Total Time Taken: ', total_time)
     
-    torch.save(model.state_dict(), os.path.join(args.save_folder, 'autoencoder_final.pth'))
+    torch.save(model.state_dict(), os.path.join(args.path, 'autoencoder_final.pth'))
