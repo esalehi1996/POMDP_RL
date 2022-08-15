@@ -24,7 +24,7 @@ parser.add_argument(
     help="Grid Size that the agent sees"
 )
 parser.add_argument(
-    "--num_episodes",
+    "--num_samples",
     type=int,
     help="Number of random rollouts to perform",
     default=1000
@@ -49,22 +49,24 @@ num_actions = env.action_space.n
 img_db = np.expand_dims(env.reset()['image'], axis=0)
 
 
-print (img_db.shape)
+print(img_db.shape)
 
+obs = env.reset()
+temp = np.expand_dims(obs['image'], axis=0)
+for i in range(args.num_samples):
+    action = env.action_space.sample()
+    obs, reward, done, info = env.step(action)
+    temp = np.concatenate((temp, np.expand_dims(obs['image'], axis=0)), axis=0)
+    if done:
+        img_db = np.concatenate((img_db, temp), axis=0)
+        obs = env.reset()
+        temp = np.expand_dims(obs['image'], axis=0)
+        print('Running sample {}'.format(i))
 
-for n_episode in range(args.num_episodes):
-	print ('Running episode {}'.format(n_episode))
-	done = False
-	obs = env.reset()
-	temp = np.expand_dims(obs['image'], axis=0)
-	while not done:
-		action = randint(0, num_actions-1)
-		obs, reward, done, info = env.step(action)
-		if not done:
-			temp = np.concatenate((temp, np.expand_dims(obs['image'], axis=0)), axis=0)
-	img_db = np.concatenate((img_db, temp), axis=0)
+if not done:
+    img_db = np.concatenate((img_db, temp), axis=0)
 
-
+print('done with collectiong samples')
 # img_db = torch.as_tensor(img_db)
 torch.save(img_db, os.path.join(args.env, 'training.pt'))
 print(img_db.shape)
