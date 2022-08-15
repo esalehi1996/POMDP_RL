@@ -33,16 +33,20 @@ def run_exp(args):
             max_env_steps = 200
     elif args['env_name'] == 'Cheesemaze':
         env = CheeseMazeEnv()
-        max_env_steps = 100
+        if args['max_env_steps'] == -1:
+            max_env_steps = 100
     elif args['env_name'] == 'Voicemail':
         env = VoicemailEnv()
-        max_env_steps = 100
+        if args['max_env_steps'] == -1:
+            max_env_steps = 100
     elif args['env_name'] == 'DroneSurveillance':
         env = DroneSurveillanceEnv()
-        max_env_steps = 200
+        if args['max_env_steps'] == -1:
+            max_env_steps = 200
     elif args['env_name'][:8] == 'MiniGrid':
         env = gym.make(args['env_name'])
-        max_env_steps = 400
+        if args['max_env_steps'] == -1:
+            max_env_steps = 400
     args['max_env_steps'] = max_env_steps
     sac = SAC(env, args)
     if args['env_name'][:8] == 'MiniGrid':
