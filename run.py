@@ -25,26 +25,32 @@ def run_exp(args):
     list_of_discount_test_rewards_allseeds = []
     if args['env_name'] == 'Tiger':
         env = TigerEnv()
+        max_env_steps = args['max_env_steps']
         if args['max_env_steps'] == -1:
             max_env_steps = 100
     elif args['env_name'] == 'RockSampling':
         env = RockSamplingEnv()
+        max_env_steps = args['max_env_steps']
         if args['max_env_steps'] == -1:
             max_env_steps = 200
     elif args['env_name'] == 'Cheesemaze':
         env = CheeseMazeEnv()
+        max_env_steps = args['max_env_steps']
         if args['max_env_steps'] == -1:
             max_env_steps = 100
     elif args['env_name'] == 'Voicemail':
         env = VoicemailEnv()
+        max_env_steps = args['max_env_steps']
         if args['max_env_steps'] == -1:
             max_env_steps = 100
     elif args['env_name'] == 'DroneSurveillance':
         env = DroneSurveillanceEnv()
+        max_env_steps = args['max_env_steps']
         if args['max_env_steps'] == -1:
             max_env_steps = 200
     elif args['env_name'][:8] == 'MiniGrid':
         env = gym.make(args['env_name'])
+        max_env_steps = args['max_env_steps']
         if args['max_env_steps'] == -1:
             max_env_steps = 400
     #args['max_env_steps'] = max_env_steps
