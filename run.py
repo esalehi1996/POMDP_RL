@@ -53,7 +53,7 @@ def run_exp(args):
         max_env_steps = args['max_env_steps']
         if args['max_env_steps'] == -1:
             max_env_steps = 400
-    #args['max_env_steps'] = max_env_steps
+    args['max_env_steps'] = max_env_steps
     sac = SAC(env, args)
     if args['env_name'][:8] == 'MiniGrid':
         state_size = sac.get_obs_dim()
