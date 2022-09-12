@@ -73,8 +73,12 @@ class SAC(object):
         double = False
         if self.args['replay_type'] == 'vanilla':
             double = True
-        self.critic = QNetwork_discrete(self.AIS_state_size, action_space.n, args['hidden_size'] , double).to(device=self.device)
-        self.critic_target = QNetwork_discrete(self.AIS_state_size, action_space.n, args['hidden_size'] , double).to(self.device)
+        noisy_net = False
+        if self.args['noisy_net'] is True:
+            noisy_net = True
+        self.critic = QNetwork_discrete(self.AIS_state_size, action_space.n, args['hidden_size'] ,noisy_net, double).to(device=self.device)
+        self.critic_target = QNetwork_discrete(self.AIS_state_size, action_space.n, args['hidden_size'] ,noisy_net,  double).to(self.device)
+        # self.critic_target.eval()
 
         # self.policy_cpu = policy_net(action_space.n, self.AIS_state_size)
         # self.q_cpu = QNetwork_discrete(self.AIS_state_size, action_space.n, args['hidden_size'] , double)
@@ -176,12 +180,12 @@ class SAC(object):
             ais_z = ais_z[ais_z.shape[0] - 1]
             # print('ais',ais_z)
             # print('hidden',hidden_p)
-            if self.rl_alg == 'QL':
+            if evaluate is False and EPS_up:
+                self.env_steps += 1
+            if self.rl_alg == 'QL' and self.args['noisy_net'] is False:
                 eps_threshold = self.eps_greedy_parameters['EPS_END'] + (
                             self.eps_greedy_parameters['EPS_START'] - self.eps_greedy_parameters['EPS_END']) * \
                                 math.exp(-1. * self.env_steps / self.eps_greedy_parameters['EPS_DECAY'])
-                if evaluate is False and EPS_up:
-                    self.env_steps += 1
                 sample = random.random()
                 if sample < eps_threshold and evaluate is False:
                     return torch.tensor([[random.randrange(self.act_dim)]],dtype=torch.long).cpu().numpy()[0][0] , hidden_p
@@ -198,6 +202,11 @@ class SAC(object):
                     qf1 , qf2 = self.critic(ais_z.detach())
                     qf = (torch.min(qf1, qf2))
                 else:
+                    if self.args['noisy_net'] is True:
+                        if evaluate is False:
+                            self.critic.train()
+                        else:
+                            self.critic.eval()
                     qf = self.critic(ais_z.detach())
                 # print(qf.max(1)[1])
                 max_ac = qf.max(1)[1]
@@ -847,6 +856,8 @@ class SAC(object):
 
             # print(ais_z)
             # print(ais_z.data.shape)
+
+            self.critic.train()
 
             unpacked_ais_z, lens_unpacked = pad_packed_sequence(ais_z, batch_first=True)
             if self.model_alg == 'AIS':

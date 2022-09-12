@@ -51,6 +51,7 @@ def main():
     parser.add_argument('--AIS_loss', type=str, default='MMD')
     parser.add_argument('--test_epsilon', type=float, default=0.05)
     parser.add_argument('--QL_VAE_disable' , type=bool , default=False )
+    parser.add_argument('--noisy_net' , type=bool , default=False)
     args = parser.parse_args()
 
     # convert to dictionary
