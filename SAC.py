@@ -78,7 +78,8 @@ class SAC(object):
             noisy_net = True
         self.critic = QNetwork_discrete(self.AIS_state_size, action_space.n, args['hidden_size'] ,noisy_net, double).to(device=self.device)
         self.critic_target = QNetwork_discrete(self.AIS_state_size, action_space.n, args['hidden_size'] ,noisy_net,  double).to(self.device)
-        # self.critic_target.eval()
+        self.critic_target.train()
+        self.critic.train()
 
         # self.policy_cpu = policy_net(action_space.n, self.AIS_state_size)
         # self.q_cpu = QNetwork_discrete(self.AIS_state_size, action_space.n, args['hidden_size'] , double)
@@ -202,11 +203,11 @@ class SAC(object):
                     qf1 , qf2 = self.critic(ais_z.detach())
                     qf = (torch.min(qf1, qf2))
                 else:
-                    if self.args['noisy_net'] is True:
-                        if evaluate is False:
-                            self.critic.train()
-                        else:
-                            self.critic.eval()
+                    # if self.args['noisy_net'] is True:
+                    #     if evaluate is False:
+                    #         self.critic.train()
+                    #     else:
+                    #         self.critic.eval()
                     qf = self.critic(ais_z.detach())
                 # print(qf.max(1)[1])
                 max_ac = qf.max(1)[1]
