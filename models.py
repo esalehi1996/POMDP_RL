@@ -312,8 +312,8 @@ class QNetwork_discrete(nn.Module):
         # Q1 architecture
         if self.noisynet is True:
             self.linear1 = FactorisedNoisyLayer(num_inputs, hidden_dim)
-            self.linear2 = FactorisedNoisyLayer(hidden_dim, num_actions)
-            # self.linear3 = FactorisedNoisyLayer(num_inputs, num_actions)
+            self.linear2 = FactorisedNoisyLayer(hidden_dim, hidden_dim)
+            self.linear3 = FactorisedNoisyLayer(hidden_dim, num_actions)
         else:
             self.linear1 = nn.Linear(num_inputs, hidden_dim)
             self.linear2 = nn.Linear(hidden_dim, hidden_dim)
@@ -331,8 +331,8 @@ class QNetwork_discrete(nn.Module):
         # print(xu.shape)
 
         x1 = F.elu(self.linear1(state))
-        # x1 = F.elu(self.linear2(x1))
-        x1 = self.linear2(x1)
+        x1 = F.elu(self.linear2(x1))
+        x1 = self.linear3(x1)
 
         if self.double is True:
             x2 = F.relu(self.linear4(state))
