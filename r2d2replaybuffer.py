@@ -2,6 +2,7 @@ from copy import deepcopy
 import random
 import torch
 import numpy as np
+from SumTree import SumTree,MinTree
 import torch.nn.functional as F
 
 
@@ -20,6 +21,19 @@ class r2d2_ReplayMemory:
         self.highdim = False
         if args['env_name'][:8] == 'MiniGrid':
             self.highdim = True
+        if args['PER']:
+            self.PER = True
+            self.SumTree = SumTree(capacity)
+            self.MinTree = MinTree(capacity)
+            self.PER_e = 0.01
+            self.PER_a = 0.6
+            self.PER_beta = 0.4
+            total_updates = args['num_steps'] / args['rl_update_every_n_steps']
+            # print(total_updates)
+            self.PER_beta_increment_per_sampling = (1 - self.PER_beta)/total_updates
+            # print(self.PER_beta_increment_per_sampling)
+        else:
+            self.PER = False
         self.buffer_burn_in_history = np.zeros([self.capacity, self.burn_in_len , self.obs_dim + self.act_dim + 1], dtype=np.float32)
         self.buffer_learning_history = np.zeros([self.capacity, self.learning_obs_len + self.forward_len, self.obs_dim + self.act_dim + 1], dtype=np.float32)
         self.buffer_current_act = np.zeros([self.capacity, self.learning_obs_len], dtype=np.int32)
@@ -60,8 +74,10 @@ class r2d2_ReplayMemory:
         # self.max_full_ep_size = 0
 
         self.full = False
+        if self.PER is True:
+            self.SumTree.reset()
 
-    def push(self, ep_states, ep_actions, ep_rewards , ep_hiddens):
+    def push(self, ep_states, ep_actions, ep_rewards , ep_hiddens , sac):
 
 
         # print(len(ep_states))
@@ -164,6 +180,8 @@ class r2d2_ReplayMemory:
         # if len(ep_rewards_)
         # for i in range(len(hidden_list)):
         #     print(i,len(learning_act_list[i]))
+        start_index = self.position_r2d2
+        buffer_fill = False
         for i in range(len(hidden_list)):
             # print('-------------',i,'---------------')
             # print(discounted_sum[i])
@@ -193,104 +211,146 @@ class r2d2_ReplayMemory:
             self.buffer_final_flag[self.position_r2d2,:len(discounted_sum[i])] = np.array([int(i*self.learning_obs_len +  j < len(ep_states) -1 ) for j in range(len(discounted_sum[i]))])
             self.buffer_final_flag_for_model[self.position_r2d2,:len(model_input_act_list[i])] = np.array([int(i*self.learning_obs_len +  j < len(ep_states) -1 ) for j in range(len(model_input_act_list[i]))])
             self.buffer_gammas[self.position_r2d2,:len(discounted_sum[i])] = np.array([self.gamma ** (min(j+self.forward_len,len(learning_obs_list[i])-1) - j) for j in range(len(discounted_sum[i]))])
-            # print(self.buffer_gammas[self.position_r2d2,:len(discounted_sum[i])])
-            # print(self.buffer_forward_idx[self.position_r2d2])
-            # print(self.buffer_final_flag[self.position_r2d2])
-            # print(self.buffer_final_flag_for_model[self.position_r2d2])
-            # print([min(j+self.forward_len,len(learning_obs_list[i])-1) - j for j in range(len(discounted_sum[i]))])
-            # print(self.buffer_burn_in_history[self.position_r2d2, :len(burn_in_act_list[i]), :])
-            # print('----learning')
-            # print(np.concatenate((np.array(learning_obs_list[i]), np.array(learning_act_list[i])), axis=1))
-            # print(self.buffer_learning_history[self.position_r2d2, :len(learning_act_list[i]), :])
-            # print('hidden')
-            # print(hidden_list[i])
-            # print(self.buffer_hidden[0][self.position_r2d2,:], self.buffer_hidden[1][self.position_r2d2,:])
-            # print('-----reward')
-            # print(discounted_sum[i])
-            # print(self.buffer_rewards[self.position_r2d2,:len(learning_act_list[i])])
             if self.full is False and self.position_r2d2 + 1 == self.capacity:
                 self.full = True
+            if self.position_r2d2 + 1 == self.capacity:
+                buffer_fill = True
 
             if self.position_r2d2 + 1 == self.capacity:
                 self.position_full_ep = 0
 
             self.position_r2d2 = (self.position_r2d2 + 1) % self.capacity
 
-
-        # for i, hidden in enumerate(hidden_list):
-        #     print(i,hidden)
-        # print(ep_rewards)
-        # # print(len(discounted_sum[2]),discounted_sum[2])
-        # for i in range(0,len(discounted_sum)):
-        #     print("------------------",i,"-------------")
-        #     print(discounted_sum[i])
-        #     print(ep_rewards[i*self.learning_obs_len:(i+1)*self.learning_obs_len])
-
-        # print('learning_history',self.buffer_learning_history[:2, :, :])
-        # print('burn_in_history',self.buffer_burn_in_history[:2, :, :])
-        # print('rewards',self.buffer_rewards[:self.position_r2d2,:])
-        # print('learning_length',self.buffer_learning_len[:self.position_r2d2])
-        # print('final_flag',self.buffer_final_flag[:self.position_r2d2,:])
-        # print('forward idx',self.buffer_forward_idx[:self.position_r2d2,:])
-        # print('current action',self.buffer_current_act[:self.position_r2d2,:])
+        # print(start_index , self.position_r2d2 , len(hidden_list))
 
 
+        if self.PER is True:
+            if buffer_fill is False:
+                input_vals = {
+                    "batch_burn_in_hist" : self.buffer_burn_in_history[start_index:self.position_r2d2, :, :],
+                    "batch_learn_hist" : self.buffer_learning_history[start_index:self.position_r2d2, :, :] ,
+                    "batch_rewards" : self.buffer_rewards[start_index:self.position_r2d2, :] ,
+                    "batch_burn_in_len": self.buffer_burn_in_len[start_index:self.position_r2d2],
+                    "batch_forward_idx": self.buffer_forward_idx[start_index:self.position_r2d2, :],
+                    "batch_final_flag": self.buffer_final_flag[start_index:self.position_r2d2, :],
+                    "batch_learn_len": self.buffer_learning_len[start_index:self.position_r2d2],
+                    "batch_hidden": (self.buffer_hidden[0][start_index:self.position_r2d2], self.buffer_hidden[1][start_index:self.position_r2d2]),
+                    "batch_current_act": self.buffer_current_act[start_index:self.position_r2d2, :],
+                    "batch_learn_forward_len": self.buffer_learn_forward_len[start_index:self.position_r2d2],
+                    "batch_next_obs": self.buffer_next_obs[start_index:self.position_r2d2],
+                    "batch_model_input_act": self.buffer_model_input_act[start_index:self.position_r2d2],
+                    "batch_model_target_reward": self.buffer_model_target_rewards[start_index:self.position_r2d2],
+                    "batch_gammas": self.buffer_gammas[start_index:self.position_r2d2],
+                    "batch_final_flag_for_model": self.buffer_final_flag_for_model[start_index:self.position_r2d2]
+                }
+                # print(input_vals['batch_learn_hist'].shape)
+            else:
+                # print('filled')
+                input_vals = {
+                    "batch_burn_in_hist": np.concatenate((self.buffer_burn_in_history[start_index:, :, :],self.buffer_burn_in_history[:self.position_r2d2, :, :])),
+                    "batch_learn_hist": np.concatenate((self.buffer_learning_history[start_index:, :, :],self.buffer_learning_history[:self.position_r2d2, :, :])),
+                    "batch_rewards": np.concatenate((self.buffer_rewards[start_index:, :],self.buffer_rewards[:self.position_r2d2, :])),
+                    "batch_burn_in_len": np.concatenate((self.buffer_burn_in_len[start_index:],self.buffer_burn_in_len[:self.position_r2d2])),
+                    "batch_forward_idx": np.concatenate((self.buffer_forward_idx[start_index:, :],self.buffer_forward_idx[:self.position_r2d2, :])),
+                    "batch_final_flag": np.concatenate((self.buffer_final_flag[start_index:, :],self.buffer_final_flag[:self.position_r2d2, :])),
+                    "batch_learn_len": np.concatenate((self.buffer_learning_len[start_index:],self.buffer_learning_len[:self.position_r2d2])),
+                    "batch_hidden": (torch.cat((self.buffer_hidden[0][start_index:],self.buffer_hidden[0][:self.position_r2d2])),
+                                     torch.cat((self.buffer_hidden[1][start_index:],self.buffer_hidden[1][:self.position_r2d2]))),
+                    "batch_current_act": np.concatenate((self.buffer_current_act[start_index:, :],self.buffer_current_act[:self.position_r2d2, :])),
+                    "batch_learn_forward_len": np.concatenate((self.buffer_learn_forward_len[start_index:],self.buffer_learn_forward_len[:self.position_r2d2])),
+                    "batch_next_obs": np.concatenate((self.buffer_next_obs[start_index:],self.buffer_next_obs[:self.position_r2d2])),
+                    "batch_model_input_act": np.concatenate((self.buffer_model_input_act[start_index:],self.buffer_model_input_act[:self.position_r2d2])),
+                    "batch_model_target_reward": np.concatenate((self.buffer_model_target_rewards[start_index:],self.buffer_model_target_rewards[:self.position_r2d2])),
+                    "batch_gammas": np.concatenate((self.buffer_gammas[start_index:],self.buffer_gammas[:self.position_r2d2])),
+                    "batch_final_flag_for_model": np.concatenate((self.buffer_final_flag_for_model[start_index:],self.buffer_final_flag_for_model[:self.position_r2d2]))
+                }
+                # print(input_vals['batch_learn_hist'].shape)
+                # print(self.buffer_learning_history[start_index:, :, :].shape,self.buffer_learning_history[:self.position_r2d2, :, :].shape )
+
+
+
+            # print(input_vals)
+
+            priorities = sac.compute_priorities(len(hidden_list) , input_vals)
+
+            # print(priorities)
+
+            priorities = (priorities + self.PER_e) ** self.PER_a
+
+            # print(priorities)
+
+            for p in priorities:
+                # print(p)
+                self.SumTree.add(p)
+                self.MinTree.add(p)
 
 
 
 
-        # print(sum_rewards(ls,gamma))
 
-        # if len(ep_states) > 1:
-        #     np_states = np.array(ep_states)
-        #     np_actions = np.array(ep_actions)
-        #     np_rewards = np.array(ep_rewards)
-        #     self.buffer_full_ep_len[self.position_full_ep] = len(ep_states)
-        #     self.buffer_full_ep_states[self.position_full_ep, :, :] = np.zeros([self.max_seq_len, self.obs_dim], dtype=np.float32)
-        #     self.buffer_full_ep_actions[self.position_full_ep, :] = np.zeros([self.max_seq_len], dtype=np.int32)
-        #     self.buffer_full_ep_rewards[self.position_full_ep, :] = np.zeros([self.max_seq_len], dtype=np.float32)
-        #     self.buffer_full_ep_states[self.position_full_ep, :len(ep_states)] = np_states
-        #     self.buffer_full_ep_actions[self.position_full_ep, :len(ep_states)] = np_actions
-        #     self.buffer_full_ep_rewards[self.position_full_ep, :len(ep_states)] = np_rewards
-        #
-        #     self.position_full_ep = self.position_full_ep + 1
-        #
-        #     if self.max_full_ep_size < self.position_full_ep:
-        #         self.max_full_ep_size = self.position_full_ep
 
-        # assert False
 
-        # print('b',self.buffer_states[self.position,:,:].shape,self.buffer_states[self.position,:,:])
 
-        # if self.full == False and self.position + 1 == self.capacity:
-        #     self.full = True
-
-        # self.position = (self.position + 1) % self.capacity
 
     def sample(self, batch_size):
-        tmp = self.position_r2d2
-        if self.full:
-            tmp = self.capacity
-        # print(tmp,batch_size)
-        idx = np.random.choice(tmp, batch_size, replace=False)
-        torch_idx = torch.from_numpy(idx)
+        # print(self.__len__())
 
-        # print('starting sampling')
-        #
-        # print(idx , torch_idx)
+        if self.PER is False:
+            tmp = self.position_r2d2
+            if self.full:
+                tmp = self.capacity
+            idx = np.random.choice(tmp, batch_size, replace=False)
+            torch_idx = torch.from_numpy(idx)
+        else:
+            idx = np.zeros(batch_size, dtype=int)
+            tree_idx = np.zeros(batch_size, dtype=int)
+            priorities = np.zeros(batch_size)
 
-        # self.buffer_burn_in_history = np.zeros([self.capacity, self.burn_in_len, self.obs_dim + self.act_dim],
-        #                                        dtype=np.float32)
-        # self.buffer_learning_history = np.zeros(
-        #     [self.capacity, self.learning_obs_len + self.forward_len, self.obs_dim + self.act_dim], dtype=np.float32)
-        # # self.buffer_burn_in_actions = np.zeros([self.capacity, self.burn_in_len , self.act_dim], dtype=np.float32)
-        # # self.buffer_learning_actions = np.zeros([self.capacity, self.learning_obs_len + self.forward_len, self.act_dim], dtype=np.float32)
-        # self.buffer_rewards = np.zeros([self.capacity, self.learning_obs_len], dtype=np.float32)
-        # self.buffer_burn_in_len = np.zeros([self.capacity], dtype=np.int32)
-        # self.buffer_forward_idx = np.zeros([self.capacity, self.learning_obs_len], dtype=np.int32)
-        # self.buffer_final_flag = np.zeros([self.capacity, self.learning_obs_len], dtype=np.int32)
-        # self.buffer_learning_len = np.zeros([self.capacity], dtype=np.int32)
-        # self.buffer_hidden = (torch.zeros(self.capacity, self.AIS_state_size), torch.zeros(self.capacity, self.AIS_state_size))
+            # print(self.SumTree.tree[99:99+self.__len__()])
+            # print(self.MinTree.tree[99:99+self.__len__()])
+            # print(self.MinTree.min())
+            # print(np.amin(self.SumTree.tree[99:99+self.__len__()]))
+
+            segment = self.SumTree.total() / batch_size
+
+            # print(segment)
+
+            self.PER_beta = np.min([1., self.PER_beta + self.PER_beta_increment_per_sampling])
+
+            for i in range(batch_size):
+                a = segment * i
+                b = segment * (i + 1)
+
+
+                s = random.uniform(a, b)
+
+                # print(i, a, b , s)
+                (id, p , didx) = self.SumTree.get(s)
+                priorities[i] = p
+                idx[i] = didx
+                tree_idx[i] = id
+
+
+
+
+
+            sampling_probabilities = priorities / self.SumTree.total()
+            p_min = self.MinTree.min() / self.SumTree.total()
+            is_max = np.power(self.SumTree.n_entries * p_min, -self.PER_beta)
+            is_weight = np.power(self.SumTree.n_entries * sampling_probabilities, -self.PER_beta)
+            is_weight /= is_max
+            torch_idx = torch.from_numpy(idx)
+            is_weight = np.reshape(is_weight, (batch_size, 1))
+            is_weight_td = np.tile(is_weight, (1, self.learning_obs_len))
+            is_weight_model = np.tile(is_weight, (1, self.learning_obs_len + self.forward_len))
+
+            # print(idx)
+            # print(torch_idx)
+            # print(tree_idx)
+            # print(is_weight)
+            # print(is_weight_td)
+            # print(is_weight_model)
+
 
         batch_burn_in_hist = self.buffer_burn_in_history[idx,:,:]
         batch_learn_hist = self.buffer_learning_history[idx,:,:]
@@ -310,8 +370,22 @@ class r2d2_ReplayMemory:
 
         # print(batch_hidden)
 
+        if self.PER is True:
+            return batch_burn_in_hist, batch_learn_hist, batch_rewards, batch_learn_len, batch_forward_idx, batch_final_flag, batch_current_act , batch_hidden , batch_burn_in_len , batch_learn_forward_len , batch_next_obs , batch_model_input_act , batch_model_target_reward , batch_gammas , batch_final_flag_for_model , tree_idx , is_weight_td , is_weight_model
+        else:
+            return batch_burn_in_hist, batch_learn_hist, batch_rewards, batch_learn_len, batch_forward_idx, batch_final_flag, batch_current_act , batch_hidden , batch_burn_in_len , batch_learn_forward_len , batch_next_obs , batch_model_input_act , batch_model_target_reward , batch_gammas , batch_final_flag_for_model
 
-        return batch_burn_in_hist, batch_learn_hist, batch_rewards, batch_learn_len, batch_forward_idx, batch_final_flag, batch_current_act , batch_hidden , batch_burn_in_len , batch_learn_forward_len , batch_next_obs , batch_model_input_act , batch_model_target_reward , batch_gammas , batch_final_flag_for_model
+    def update_priorities(self,tree_idx,priorities):
+        # print(priorities)
+        priorities = (priorities + self.PER_e) ** self.PER_a
+
+
+        for p,idx in zip(priorities,tree_idx):
+            # print(p)
+            self.SumTree.update(idx,p)
+            self.MinTree.update(idx,p)
+
+
 
     # def sample_full_ep(self, batch_size):
     #     idx = np.random.choice(self.max_full_ep_size, batch_size, replace=False)
@@ -341,7 +415,7 @@ class r2d2_ReplayMemory:
         if self.full:
             return self.capacity
         else:
-            return self.position_r2d2 + 1
+            return self.position_r2d2
 
     # def len_fullep(self):
     #     return self.max_full_ep_size

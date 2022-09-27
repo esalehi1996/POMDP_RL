@@ -52,6 +52,9 @@ def main():
     parser.add_argument('--test_epsilon', type=float, default=0.0)
     parser.add_argument('--QL_VAE_disable' , type=bool , default=False )
     parser.add_argument('--noisy_net' , type=bool , default=False)
+    parser.add_argument('--PER', type=bool, default=False)
+    parser.add_argument('--PER_type', type=str, default='TD')
+    parser.add_argument('--MMD_min', type=float, default=-40.0)
     args = parser.parse_args()
 
     # convert to dictionary

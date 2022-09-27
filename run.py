@@ -173,7 +173,7 @@ def run_exp(args):
                 if episode_steps >= max_env_steps:
                     break
             # print('gg')
-            memory.push(ls_states, ls_actions, ls_rewards , ls_hiddens)  # Append transition to memory
+            memory.push(ls_states, ls_actions, ls_rewards , ls_hiddens , sac)  # Append transition to memory
             k_episode += 1
             # print(ls_states,ls_actions,ls_rewards)
             ls_running_rewards.append(episode_reward)
