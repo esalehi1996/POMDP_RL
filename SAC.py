@@ -174,7 +174,7 @@ class SAC(object):
             # state = convert_int_to_onehot(state, self.state_size) this is what was commented ***
             rho_input = torch.cat((state, action , reward)).reshape(1, 1, -1).to(self.device)
             # if self.alg == 'SAC+AIS':
-            ais_z, hidden_p = self.rho(rho_input, 1, hidden_p, self.device , [] , self.args['replay_type'])
+            ais_z, hidden_p = self.rho(rho_input, 1, hidden_p, self.device , [] , self.args['replay_type'] , pack_sequence = False)
             # if self.alg == 'SAC':
             #     ais_z, hidden_p = self.rho_policy(rho_input, 1, hidden_p)
             # print('ais',ais_z)

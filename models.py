@@ -126,7 +126,7 @@ class rho_net(nn.Module):
 
         self.apply(weights_init_)
 
-    def forward(self, x, batch_size, hidden, device , batch_lengths , replay_type):
+    def forward(self, x, batch_size, hidden, device , batch_lengths , replay_type , pack_sequence = True):
         if hidden == None:
             hidden = (torch.zeros(1, batch_size, self.AIS_state_size).to(device),
                       torch.zeros(1, batch_size, self.AIS_state_size).to(device))
@@ -136,7 +136,7 @@ class rho_net(nn.Module):
             x = F.elu(self.fc2(x))
         else:
             x = F.elu(self.fc1(x))
-        if batch_size > 1 and replay_type == 'r2d2':
+        if pack_sequence is True and replay_type == 'r2d2':
             x = pack_padded_sequence(x, batch_lengths, batch_first=True,enforce_sorted=False)
             # print('packed',x.data.shape)
             # print(x)
