@@ -443,9 +443,11 @@ class SAC(object):
 
                 priorities = torch.div(priorities, loss_batch.to(self.device))
 
-                # print(priorities)
+                # print(priorities , loss_batch)
 
-                priorities = (priorities - self.args['MMD_min']) / np.abs(self.args['MMD_min'])
+                # priorities = (priorities - self.args['MMD_min']) / np.abs(self.args['MMD_min'])
+                priorities = torch.pow(self.args['Model_PER_exponent'],priorities)
+                # print('pppp_gooo',priorities)
 
 
                 return priorities.cpu().numpy()
@@ -644,7 +646,9 @@ class SAC(object):
 
                         priorities = torch.div(priorities, loss_batch.to(self.device))
 
-                        priorities = (priorities - self.args['MMD_min']) / np.abs(self.args['MMD_min'])
+                        # priorities = (priorities - self.args['MMD_min']) / np.abs(self.args['MMD_min'])
+                        priorities = torch.pow(self.args['Model_PER_exponent'],priorities)
+                        # print('ppppppppp',priorities)
 
 
 
