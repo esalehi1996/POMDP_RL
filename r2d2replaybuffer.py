@@ -25,7 +25,7 @@ class r2d2_ReplayMemory:
             self.PER = True
             self.SumTree = SumTree(capacity)
             self.MinTree = MinTree(capacity)
-            self.PER_e = 0.01
+            self.PER_e = 1e-6
             self.PER_a = 0.6
             self.PER_beta = 0.4
             total_updates = args['num_steps'] / args['rl_update_every_n_steps']
