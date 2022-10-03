@@ -55,7 +55,7 @@ def main():
     parser.add_argument('--PER', type=bool, default=False)
     parser.add_argument('--PER_type', type=str, default='TD')
     parser.add_argument('--Model_PER_exponent', type=float, default=1.20)
-    parser.add_argument('--PER_e', type=float, default=1e-6)
+    parser.add_argument('--PER_e', type=float, default=1e-7)
     args = parser.parse_args()
 
     # convert to dictionary
