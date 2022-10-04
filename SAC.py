@@ -341,9 +341,11 @@ class SAC(object):
 
                 # print(packed_reward)
 
-
-
-                qf_loss = F.smooth_l1_loss(qf.view(-1), next_q_value , reduce = False)
+                if self.args['TD_loss'] == 'mse':
+                    qf_loss = F.mse_loss(qf.view(-1), next_q_value, reduce=False)
+                elif self.args['TD_loss'] == 'smooth_l1':
+                    qf_loss = F.smooth_l1_loss(qf.view(-1), next_q_value, reduce=False)
+                # qf_loss = F.smooth_l1_loss(qf.view(-1), next_q_value , reduce = False)
 
                 # print(qf_loss)
 
@@ -777,7 +779,10 @@ class SAC(object):
 
             # print(qf.shape)
             # print(qf)
-            qf_loss = F.smooth_l1_loss(qf.view(-1), next_q_value, reduce=False)
+            if self.args['TD_loss'] == 'mse':
+                qf_loss = F.mse_loss(qf.view(-1), next_q_value, reduce=False)
+            elif self.args['TD_loss'] == 'smooth_l1':
+                qf_loss = F.smooth_l1_loss(qf.view(-1), next_q_value, reduce=False)
             if self.args['PER'] is True:
                 is_weight_td = torch.from_numpy(is_weight_td).to(self.device)
                 is_weight_td_packed = pack_padded_sequence(is_weight_td,
