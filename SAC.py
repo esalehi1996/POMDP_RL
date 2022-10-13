@@ -52,7 +52,7 @@ class SAC(object):
         if args['env_name'][:8] == 'MiniGrid':
             highdim = True
             autoencoder_path = os.path.join(os.path.dirname(os.path.realpath(__file__)), 'autoencoder', args['env_name'])
-            # print(autoencoder_path)
+            print(autoencoder_path)
             # print(os.path.join(autoencoder_path, 'autoencoder_final.pth'))
             # print('gggg')
             self.autoencoder_model = autoencoder(True).to(self.device)
@@ -864,12 +864,12 @@ class SAC(object):
         checkpoint = torch.load(path)
 
         self.policy.load_state_dict(checkpoint['policy'])
-        self.policy_cpu.load_state_dict(checkpoint['policy'])
+        # self.policy_cpu.load_state_dict(checkpoint['policy'])
         self.critic.load_state_dict(checkpoint['Q'])
         self.critic_target.load_state_dict(checkpoint['Q_target'])
-        self.q_cpu.load_state_dict(checkpoint['Q'])
+        # self.q_cpu.load_state_dict(checkpoint['Q'])
         self.rho.load_state_dict(checkpoint['AIS_rho'])
-        self.rho_cpu.load_state_dict(checkpoint['AIS_rho'])
+        # self.rho_cpu.load_state_dict(checkpoint['AIS_rho'])
         self.psi.load_state_dict(checkpoint['AIS_psi'])
 
     def get_obs_dim(self):

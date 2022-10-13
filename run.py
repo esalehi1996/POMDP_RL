@@ -1,7 +1,7 @@
 import itertools
 
 import numpy as np
-
+import os
 from env.Tiger import TigerEnv
 from env.RockSampling import RockSamplingEnv
 from env.DroneSurveillance import DroneSurveillanceEnv
@@ -14,6 +14,8 @@ from torch.utils.tensorboard import SummaryWriter
 import gym
 import gym_minigrid
 from gym_minigrid.wrappers import *
+from PIL import Image
+import matplotlib.pyplot as plt
 from models import convert_int_to_onehot
 from args import Args
 import pickle
@@ -183,6 +185,8 @@ def run_exp(args):
             if total_numsteps > args['num_steps']:
                 break
 
+        # print('making_videoo')
+        make_video(env,sac,args,seed , state_size)
         list_of_test_rewards_allseeds.append(list_of_test_rewards)
         list_of_discount_test_rewards_allseeds.append(list_of_discount_test_rewards)
 
@@ -207,6 +211,50 @@ def run_exp(args):
     np.save(args['logdir'] + '/'+args['exp_name']+'_arr_d_r', arr_d_r)
     # print(arr_r)
     # print(arr_d_r)
+
+
+def make_video(env , sac , args , seed , state_size):
+    num_episodes = 10
+    l = 0
+    env.reset()
+    full_img = env.render('rgb_array')
+    full_img = full_img.reshape(1, full_img.shape[0], full_img.shape[1], full_img.shape[2])
+
+    for ep_i in range(num_episodes):
+        # print(ep_i)
+        start = True
+        hidden_p = None
+        action = 0
+        reward = 0
+        state = env.reset()
+        done = False
+        steps = 0
+        while not done:
+            img = env.render()
+            full_img = np.concatenate([full_img, img.reshape(1, img.shape[0], img.shape[1], img.shape[2])], 0)
+            if args['env_name'][:8] == 'MiniGrid':
+                state = state['image']
+                state = sac.get_encoded_obs(state)
+            else:
+                state = convert_int_to_onehot(state, state_size)
+            l += 1
+            steps += 1
+            action, hidden_p = sac.select_action(state, action, reward, hidden_p, start, False, evaluate=True)
+            # action = env.action_space.sample()
+            next_state, reward, done, _ = env.step(action)
+            state = next_state
+            if start == True:
+                start = False
+            if steps >= args['max_env_steps']:
+                break
+    # print(l)
+    # print(full_img.shape)
+    imgs = [Image.fromarray(img) for img in full_img]
+    path = os.path.join(args['logdir'], 'Seed_' + str(seed) + '_video.gif')
+    imgs[0].save(path, save_all=True, append_images=imgs[1:], duration=200, loop=0)
+
+
+
 
 
 
