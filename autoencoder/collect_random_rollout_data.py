@@ -53,15 +53,19 @@ print(img_db.shape)
 
 obs = env.reset()
 temp = np.expand_dims(obs['image'], axis=0)
+k = 0
 for i in range(args.num_samples):
     action = env.action_space.sample()
     obs, reward, done, info = env.step(action)
     temp = np.concatenate((temp, np.expand_dims(obs['image'], axis=0)), axis=0)
+    k += 1
     if done:
-        img_db = np.concatenate((img_db, temp), axis=0)
         obs = env.reset()
-        temp = np.expand_dims(obs['image'], axis=0)
-        print('Running sample {}'.format(i))
+        if k >= 100000:
+            k = 0
+            img_db = np.concatenate((img_db, temp), axis=0)
+            temp = np.expand_dims(obs['image'], axis=0)
+            print('Running sample {}'.format(i))
 
 if not done:
     img_db = np.concatenate((img_db, temp), axis=0)
