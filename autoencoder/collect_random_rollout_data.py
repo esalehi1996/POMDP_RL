@@ -3,6 +3,7 @@ import argparse
 import numpy as np
 import torch
 
+
 import gym
 import gym_minigrid
 from gym_minigrid.wrappers import *
