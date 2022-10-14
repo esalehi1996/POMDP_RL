@@ -17,6 +17,7 @@ from gym_minigrid.wrappers import *
 from PIL import Image
 import matplotlib.pyplot as plt
 from models import convert_int_to_onehot
+import moviepy.editor as mpy
 from args import Args
 import pickle
 # env = gym.make("Battleship-v0")
@@ -249,9 +250,11 @@ def make_video(env , sac , args , seed , state_size):
                 break
     # print(l)
     # print(full_img.shape)
-    imgs = [Image.fromarray(img) for img in full_img]
-    path = os.path.join(args['logdir'], 'Seed_' + str(seed) + '_video.gif')
-    imgs[0].save(path, save_all=True, append_images=imgs[1:], duration=200, loop=0)
+    # imgs = [Image.fromarray(img) for img in full_img]
+    path = os.path.join(args['logdir'], 'Seed_' + str(seed) + '_video.mp4')
+    # imgs[0].save(path, save_all=True, append_images=imgs[1:], duration=200, loop=0)
+    clip = mpy.ImageSequenceClip(list(full_img), fps=5)
+    clip.write_videofile(path)
 
 
 

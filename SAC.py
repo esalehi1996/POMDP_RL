@@ -52,7 +52,7 @@ class SAC(object):
         if args['env_name'][:8] == 'MiniGrid':
             highdim = True
             autoencoder_path = os.path.join(os.path.dirname(os.path.realpath(__file__)), 'autoencoder', args['env_name'])
-            print(autoencoder_path)
+            # print(autoencoder_path)
             # print(os.path.join(autoencoder_path, 'autoencoder_final.pth'))
             # print('gggg')
             self.autoencoder_model = autoencoder(True).to(self.device)

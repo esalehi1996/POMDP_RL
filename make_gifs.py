@@ -8,6 +8,8 @@ from PIL import Image
 # in the root directory
 from SAC import SAC
 from models import convert_int_to_onehot
+import moviepy.editor as mpy
+import cv2
 
 
 def make_video(env , sac , args , seed , state_size , path):
@@ -46,9 +48,22 @@ def make_video(env , sac , args , seed , state_size , path):
                 break
     # print(l)
     # print(full_img.shape)
-    imgs = [Image.fromarray(img) for img in full_img]
-    vpath = os.path.join(path, 'Seed_' + str(seed) + '_video.gif')
-    imgs[0].save(vpath, save_all=True, append_images=imgs[1:], duration=200, loop=0)
+    # imgs = [Image.fromarray(img) for img in full_img]
+    # print(list(full_img)[0].shape)
+    vpath = os.path.join(path, 'Seed_' + str(seed) + '_video.mp4')
+    # imgs[0].save(vpath, save_all=True, append_images=imgs[1:], duration=100, loop=0)
+
+    fps = 5
+
+    # image_files = [os.path.join(image_folder, img)
+    #                for img in os.listdir(image_folder)
+    #                if img.endswith(".png")]
+
+    clip = mpy.ImageSequenceClip(list(full_img), fps=fps)
+    clip.write_videofile(vpath)
+
+    # print(len(list(full_img)))
+    # assert False
 
 
 
@@ -73,7 +88,8 @@ for file in dir_list:
         ls_model_files = []
         num_seeds = 0
         for f_name in os.listdir(d):
-            if 'models.pt' in f_name:
+            # print(f_name[0:2])
+            if 'models.pt' in f_name and f_name[0:2] != '._':
                 ls_model_files.append(f_name)
                 num_seeds += 1
 
@@ -84,8 +100,7 @@ for file in dir_list:
             continue
 
         print('making video for :' , d , 'num seeds:' ,num_seeds)
-        print(args)
-        print(args['QL_VAE_disable'])
+        print(ls_model_files)
 
         # print(ls_model_files,num_seeds)
         env = gym.make(args['env_name'])
@@ -97,6 +112,11 @@ for file in dir_list:
             print(os.path.join(d,ls_model_files[i]))
             sac.load_model(os.path.join(d,ls_model_files[i]))
             make_video(env , sac , args , i , state_size , d)
+        # sac = SAC(env, args)
+        # state_size = sac.get_obs_dim()
+        # print(os.path.join(d,ls_model_files[0]))
+        # sac.load_model(os.path.join(d,ls_model_files[0]))
+        # make_video(env , sac , args , 0 , state_size , d)
 
 
 
