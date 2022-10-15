@@ -52,7 +52,7 @@ def run_exp(args):
         if args['max_env_steps'] == -1:
             max_env_steps = 200
     elif args['env_name'][:8] == 'MiniGrid':
-        env = gym.make(args['env_name'])
+        env = gym.make(args['env_name'] , render_mode = 'rgb_array')
         max_env_steps = args['max_env_steps']
         if args['max_env_steps'] == -1:
             max_env_steps = 400
@@ -218,7 +218,7 @@ def make_video(env , sac , args , seed , state_size):
     num_episodes = 10
     l = 0
     env.reset()
-    full_img = env.render('rgb_array')
+    full_img = env.render()
     full_img = full_img.reshape(1, full_img.shape[0], full_img.shape[1], full_img.shape[2])
 
     for ep_i in range(num_episodes):
