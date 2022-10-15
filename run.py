@@ -52,7 +52,7 @@ def run_exp(args):
         if args['max_env_steps'] == -1:
             max_env_steps = 200
     elif args['env_name'][:8] == 'MiniGrid':
-        env = gym.make(args['env_name'] , render_mode = 'rgb_array')
+        env = gym.make(args['env_name'])
         max_env_steps = args['max_env_steps']
         if args['max_env_steps'] == -1:
             max_env_steps = 400
