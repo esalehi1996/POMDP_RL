@@ -7,6 +7,7 @@ from env.RockSampling import RockSamplingEnv
 from env.DroneSurveillance import DroneSurveillanceEnv
 from env.cheesemaze import CheeseMazeEnv
 from env.voicemail import VoicemailEnv
+from env.custom_minigrid import *
 from SAC import SAC
 from Replaybuffer import Rec_ReplayMemory
 from r2d2replaybuffer import r2d2_ReplayMemory
@@ -51,6 +52,12 @@ def run_exp(args):
         max_env_steps = args['max_env_steps']
         if args['max_env_steps'] == -1:
             max_env_steps = 200
+    # elif args['env_name'][:14] == 'CustomMiniGrid':
+    #     if args['env_name'][15:18] == 'Key':
+    #         env = CustomKeyCorridor(max_steps=args['max_env_steps'] , room_size=int(args['env_name'][18:]))
+    #     elif args['env_name'][15:20] == 'Multi':
+    #         env = CustomMultiRoomEnv(max_steps=args['max_env_steps'] , minNumRooms=int(args['env_name'][20:]) , maxNumRooms=int(args['env_name'][20:]))
+    #     max_env_steps = args['max_env_steps']
     elif args['env_name'][:8] == 'MiniGrid':
         env = gym.make(args['env_name'])
         max_env_steps = args['max_env_steps']
@@ -215,11 +222,15 @@ def run_exp(args):
 
 
 def make_video(env , sac , args , seed , state_size):
-    num_episodes = 10
+    num_episodes = 5
     l = 0
     env.reset()
-    full_img = env.render()
-    full_img = full_img.reshape(1, full_img.shape[0], full_img.shape[1], full_img.shape[2])
+    render = env.render()
+    # full_img = full_img.reshape(1, full_img.shape[0], full_img.shape[1], full_img.shape[2])
+    full_img = np.zeros([num_episodes * args['max_env_steps']//4 +1 , render.shape[0], render.shape[1], render.shape[2]], dtype=np.uint8)
+    # print(full_img.shape, full_img.dtype)
+    #
+    # assert False
 
     for ep_i in range(num_episodes):
         # print(ep_i)
@@ -232,7 +243,7 @@ def make_video(env , sac , args , seed , state_size):
         steps = 0
         while not done:
             img = env.render()
-            full_img = np.concatenate([full_img, img.reshape(1, img.shape[0], img.shape[1], img.shape[2])], 0)
+            full_img[l,:,:,:] = img
             if args['env_name'][:8] == 'MiniGrid':
                 state = state['image']
                 state = sac.get_encoded_obs(state)
@@ -246,14 +257,14 @@ def make_video(env , sac , args , seed , state_size):
             state = next_state
             if start == True:
                 start = False
-            if steps >= args['max_env_steps']:
+            if steps >= args['max_env_steps']//4 and steps >= 200:
                 break
     # print(l)
     # print(full_img.shape)
     # imgs = [Image.fromarray(img) for img in full_img]
     path = os.path.join(args['logdir'], 'Seed_' + str(seed) + '_video.mp4')
     # imgs[0].save(path, save_all=True, append_images=imgs[1:], duration=200, loop=0)
-    clip = mpy.ImageSequenceClip(list(full_img), fps=5)
+    clip = mpy.ImageSequenceClip(list(full_img[:l+1,:,:,:]), fps=5)
     clip.write_videofile(path)
 
 
