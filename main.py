@@ -43,7 +43,7 @@ def main():
     parser.add_argument('--only_train_model' , type=bool, default=False)
     parser.add_argument('--EPS_start', type=float, default=1.0)
     parser.add_argument('--EPS_decay', type=int, default=50000)
-    parser.add_argument('--EPS_end', type=float, default=0.01)
+    parser.add_argument('--EPS_end', type=float, default=0.05)
     parser.add_argument('--burn_in_len', type=int, default=50)
     parser.add_argument('--learning_obs_len', type=int, default=10)
     parser.add_argument('--forward_len', type=int, default=3)
@@ -57,6 +57,7 @@ def main():
     parser.add_argument('--Model_PER_exponent', type=float, default=1.20)
     parser.add_argument('--PER_e', type=float, default=1e-7)
     parser.add_argument('--TD_loss', type=str, default='mse')
+    parser.add_argument('--EPS_decay_type', type=str, default='exponential')
     args = parser.parse_args()
 
     # convert to dictionary

@@ -184,12 +184,17 @@ class SAC(object):
             if evaluate is False and EPS_up:
                 self.env_steps += 1
             if self.rl_alg == 'QL' and self.args['noisy_net'] is False:
+                if self.args['EPS_decay_type'] == 'exponential':
+                    eps_threshold = self.eps_greedy_parameters['EPS_END'] + (
+                            self.eps_greedy_parameters['EPS_START'] - self.eps_greedy_parameters['EPS_END']) * \
+                                    math.exp(-1. * self.env_steps / self.eps_greedy_parameters['EPS_DECAY'])
+                elif self.args['EPS_decay_type'] == 'linear':
+                    eps_threshold = self.eps_greedy_parameters['EPS_START'] + (
+                            self.eps_greedy_parameters['EPS_END'] - self.eps_greedy_parameters['EPS_START']) * \
+                                    (self.env_steps / self.args['num_steps'])
                 # eps_threshold = self.eps_greedy_parameters['EPS_END'] + (
                 #             self.eps_greedy_parameters['EPS_START'] - self.eps_greedy_parameters['EPS_END']) * \
                 #                 (self.env_steps / self.args['num_steps'])
-                eps_threshold = self.eps_greedy_parameters['EPS_START'] + (
-                        self.eps_greedy_parameters['EPS_END'] - self.eps_greedy_parameters['EPS_START']) * \
-                                (self.env_steps / self.args['num_steps'])
                 # print(eps_threshold , self.env_steps / self.args['num_steps'])
                 sample = random.random()
                 if sample < eps_threshold and evaluate is False:
