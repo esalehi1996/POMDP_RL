@@ -186,7 +186,7 @@ class SAC(object):
             if self.rl_alg == 'QL' and self.args['noisy_net'] is False:
                 eps_threshold = self.eps_greedy_parameters['EPS_END'] + (
                             self.eps_greedy_parameters['EPS_START'] - self.eps_greedy_parameters['EPS_END']) * \
-                                math.exp(-1. * self.env_steps / self.eps_greedy_parameters['EPS_DECAY'])
+                                (self.env_steps / self.args['num_steps'])
                 sample = random.random()
                 if sample < eps_threshold and evaluate is False:
                     return torch.tensor([[random.randrange(self.act_dim)]],dtype=torch.long).cpu().numpy()[0][0] , hidden_p
