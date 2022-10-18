@@ -341,11 +341,12 @@ class SAC(object):
 
                 # print(packed_reward)
 
-                if self.args['TD_loss'] == 'mse':
-                    qf_loss = F.mse_loss(qf.view(-1), next_q_value, reduce=False)
-                elif self.args['TD_loss'] == 'smooth_l1':
-                    qf_loss = F.smooth_l1_loss(qf.view(-1), next_q_value, reduce=False)
+                # if self.args['TD_loss'] == 'mse':
+                #     qf_loss = F.mse_loss(qf.view(-1), next_q_value, reduce=False)
+                # elif self.args['TD_loss'] == 'smooth_l1':
+                #     qf_loss = F.smooth_l1_loss(qf.view(-1), next_q_value, reduce=False)
                 # qf_loss = F.smooth_l1_loss(qf.view(-1), next_q_value , reduce = False)
+                qf_loss = torch.abs(qf.view(-1) - next_q_value)
 
                 # print(qf_loss)
 
@@ -631,7 +632,6 @@ class SAC(object):
                                                                   enforce_sorted=False)
 
                     total_model_loss = next_obs_loss * self.Lambda + reward_loss * (1 - self.Lambda)
-                    total_model_loss = total_model_loss * is_weight_model_packed.data
 
                     if self.args['PER_type'] == 'Model':
                         packed_loss = rnn_utils.PackedSequence(total_model_loss.detach(), packed_target_reward.batch_sizes,
@@ -652,11 +652,7 @@ class SAC(object):
                         priorities = torch.pow(self.args['Model_PER_exponent'],priorities)
                         # print('ppppppppp',priorities)
 
-
-
-
-
-
+                    total_model_loss = total_model_loss * is_weight_model_packed.data
                     total_model_loss = total_model_loss.mean()
 
 
@@ -792,16 +788,17 @@ class SAC(object):
 
                 qf_loss = qf_loss * is_weight_td_packed.data
                 if self.args['PER_type'] == 'TD':
-                    packed_loss = rnn_utils.PackedSequence(qf_loss, packed_reward.batch_sizes, packed_reward.sorted_indices,
+                    diff = torch.abs(qf.view(-1) - next_q_value)
+                    packed_diff = rnn_utils.PackedSequence(diff, packed_reward.batch_sizes, packed_reward.sorted_indices,
                                                        packed_reward.unsorted_indices)
 
                     # print(packed_loss.data.shape,packed_loss.batch_sizes)
 
-                    unpacked_loss, loss_batch = pad_packed_sequence(packed_loss, batch_first=True)
+                    unpacked_diff, diff_batch = pad_packed_sequence(packed_diff, batch_first=True)
 
-                    priorities = torch.sum(unpacked_loss, 1)
+                    priorities = torch.sum(unpacked_diff, 1)
 
-                    priorities = torch.div(priorities, loss_batch.to(self.device))
+                    priorities = torch.div(priorities, diff_batch.to(self.device))
 
 
 

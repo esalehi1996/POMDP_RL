@@ -222,12 +222,13 @@ def run_exp(args):
 
 
 def make_video(env , sac , args , seed , state_size):
-    num_episodes = 5
+    num_episodes = 10
     l = 0
     env.reset()
     render = env.render()
     # full_img = full_img.reshape(1, full_img.shape[0], full_img.shape[1], full_img.shape[2])
-    full_img = np.zeros([num_episodes * args['max_env_steps']//4 +1 , render.shape[0], render.shape[1], render.shape[2]], dtype=np.uint8)
+    max_size = max(args['max_env_steps']//4 , 200)
+    full_img = np.zeros([num_episodes * max_size +1 , render.shape[0], render.shape[1], render.shape[2]], dtype=np.uint8)
     # print(full_img.shape, full_img.dtype)
     #
     # assert False
