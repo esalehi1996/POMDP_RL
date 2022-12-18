@@ -194,7 +194,8 @@ def run_exp(args):
                 break
 
         # print('making_videoo')
-        make_video(env,sac,args,seed , state_size)
+        if args['env_name'][:8] == 'MiniGrid':
+            make_video(env,sac,args,seed , state_size)
         list_of_test_rewards_allseeds.append(list_of_test_rewards)
         list_of_discount_test_rewards_allseeds.append(list_of_discount_test_rewards)
 
