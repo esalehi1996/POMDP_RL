@@ -4,18 +4,19 @@ import numpy
 # SumTree
 # a binary tree data structure where the parent’s value is the sum of its children
 class SumTree:
-    write = 0
 
     def __init__(self, capacity):
         self.capacity = capacity
         self.tree = numpy.zeros(2 * capacity - 1)
         self.n_entries = 0
+        self.write = 0
 
     # update to the root node
 
     def reset(self):
         self.tree = numpy.zeros(2 * self.capacity - 1)
         self.n_entries = 0
+        self.write = 0
 
     def _propagate(self, idx, change):
         parent = (idx - 1) // 2
@@ -74,18 +75,19 @@ class SumTree:
         return (idx, self.tree[idx], dataIdx)
 
 class MinTree:
-    write = 0
 
     def __init__(self, capacity):
         self.capacity = capacity
         self.tree = numpy.ones(2 * capacity - 1) * numpy.inf
         self.n_entries = 0
+        self.write = 0
 
     # update to the root node
 
     def reset(self):
         self.tree = numpy.ones(2 * self.capacity - 1) * numpy.inf
         self.n_entries = 0
+        self.write = 0
 
     def min(self):
         return self.tree[0]

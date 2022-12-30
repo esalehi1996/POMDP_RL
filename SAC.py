@@ -537,6 +537,7 @@ class SAC(object):
             # self.critic.train()
             # if self.model_alg == 'AIS':
             # with torch.no_grad():
+            # print(list(batch_learn_forward_len))
             ais_z, hidden = self.rho(batch_learn_hist, batch_size, hidden_burn_in, self.device,
                                      list(batch_learn_forward_len), self.args['replay_type'])
             if self.model_alg == 'AIS':
@@ -830,7 +831,8 @@ class SAC(object):
             if self.model_alg == 'None':
                 self.AIS_optimizer.step()
 
-            memory.update_priorities(tree_idx, priorities.detach().cpu().numpy())
+            if self.args['PER'] is True:
+                memory.update_priorities(tree_idx, priorities.detach().cpu().numpy())
 
         if self.update_to_q % self.target_update_interval == 0:
             # hard_update(self.critic_target, self.critic)

@@ -9,6 +9,7 @@ import torch.nn.functional as F
 class r2d2_ReplayMemory:
     def __init__(self, capacity, obs_dim, act_dim, max_sequence_length, args):
         self.capacity = capacity
+        self.args = args
         self.max_seq_len = max_sequence_length
         self.obs_dim = obs_dim
         self.act_dim = act_dim
@@ -76,6 +77,8 @@ class r2d2_ReplayMemory:
         self.full = False
         if self.PER is True:
             self.SumTree.reset()
+            self.MinTree.reset()
+            self.PER_beta = 0.4
 
     def push(self, ep_states, ep_actions, ep_rewards , ep_hiddens , sac):
 
@@ -294,6 +297,9 @@ class r2d2_ReplayMemory:
 
     def sample(self, batch_size):
         # print(self.__len__())
+        # print(self.buffer_learn_forward_len[:self.position_r2d2])
+        # print(self.full,self.position_r2d2)
+        # print(self.PER)
 
         if self.PER is False:
             tmp = self.position_r2d2
@@ -314,6 +320,7 @@ class r2d2_ReplayMemory:
             segment = self.SumTree.total() / batch_size
 
             # print(segment)
+            # print(self.SumTree.total(),self.MinTree.min())
 
             self.PER_beta = np.min([1., self.PER_beta + self.PER_beta_increment_per_sampling])
 
@@ -350,6 +357,7 @@ class r2d2_ReplayMemory:
             # print(is_weight)
             # print(is_weight_td)
             # print(is_weight_model)
+        # print(idx,tree_idx)
 
 
         batch_burn_in_hist = self.buffer_burn_in_history[idx,:,:]
