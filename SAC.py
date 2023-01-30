@@ -275,7 +275,7 @@ class SAC(object):
 
 
 
-            if self.args['PER_type'] == 'TD':
+            if self.args['PER_type'] == 'TD' or self.args['PER_type'] == 'Both':
 
                 unpacked_ais_z, lens_unpacked = pad_packed_sequence(ais_z, batch_first=True)
 
@@ -377,12 +377,14 @@ class SAC(object):
 
                 # print(priorities)
 
-                return priorities.cpu().numpy()
+                if self.args['PER_type'] == 'TD':
+                    return priorities.cpu().numpy()
+                priorities_td = priorities
                 # print('TD')
 
 
 
-            elif self.args['PER_type'] == 'Model':
+            if self.args['PER_type'] == 'Model' or self.args['PER_type'] == 'Both':
 
                 torch_model_input_act = torch.from_numpy(input_vals['batch_model_input_act']).to(self.device)
 
@@ -461,8 +463,10 @@ class SAC(object):
                 priorities = torch.pow(self.args['Model_PER_exponent'],priorities)
                 # print('pppp_gooo',priorities)
 
-
-                return priorities.cpu().numpy()
+                if self.args['PER_type'] == 'Model':
+                    return priorities.cpu().numpy()
+                else:
+                    return (priorities + priorities_td).cpu().numpy()
 
     def update_parameters_r2d2(self, memory, batch_size, updates):
 
@@ -643,7 +647,7 @@ class SAC(object):
 
                     total_model_loss = next_obs_loss * self.Lambda + reward_loss * (1 - self.Lambda)
 
-                    if self.args['PER_type'] == 'Model':
+                    if self.args['PER_type'] == 'Model' or self.args['PER_type'] == 'Both':
                         packed_loss = rnn_utils.PackedSequence(total_model_loss.detach(), packed_target_reward.batch_sizes,
                                                                packed_target_reward.sorted_indices,
                                                                packed_target_reward.unsorted_indices)
@@ -660,6 +664,8 @@ class SAC(object):
 
                         # priorities = (priorities - self.args['MMD_min']) / np.abs(self.args['MMD_min'])
                         priorities = torch.pow(self.args['Model_PER_exponent'],priorities)
+                        if self.args['PER_type'] == 'Both':
+                            priorities_model = priorities
                         # print('ppppppppp',priorities)
 
                     total_model_loss = total_model_loss * is_weight_model_packed.data
@@ -797,7 +803,7 @@ class SAC(object):
                                                           enforce_sorted=False)
 
                 qf_loss = qf_loss * is_weight_td_packed.data
-                if self.args['PER_type'] == 'TD':
+                if self.args['PER_type'] == 'TD' or self.args['PER_type'] == 'Both':
                     diff = torch.abs(qf.view(-1) - next_q_value)
                     packed_diff = rnn_utils.PackedSequence(diff, packed_reward.batch_sizes, packed_reward.sorted_indices,
                                                        packed_reward.unsorted_indices)
@@ -808,7 +814,10 @@ class SAC(object):
 
                     priorities = torch.sum(unpacked_diff, 1)
 
+
                     priorities = torch.div(priorities, diff_batch.to(self.device))
+                    if self.args['PER_type'] == 'Both':
+                        priorities = priorities + priorities_model
 
 
 
