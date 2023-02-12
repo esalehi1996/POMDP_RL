@@ -238,9 +238,9 @@ class SAC(object):
             model_losses = 0
             qf_losses, policy_losses = self.update_parameters_vanilla(memory,batch_size,updates)
         if self.args['replay_type'] == 'r2d2':
-            qf_losses, policy_losses , model_losses = self.update_parameters_r2d2(memory, batch_size, updates)
+            qf_losses, policy_losses , model_losses , reward_losses = self.update_parameters_r2d2(memory, batch_size, updates)
 
-        return qf_losses, policy_losses , model_losses
+        return qf_losses, policy_losses , model_losses , reward_losses
 
     def compute_priorities(self, batch_size , input_vals):
         # print(input_vals)
@@ -440,7 +440,7 @@ class SAC(object):
 
                 # print(reward_loss.shape)
 
-                total_model_loss = next_obs_loss * self.Lambda + reward_loss * (1 - self.Lambda)
+                total_model_loss = torch.pow(self.args['Model_PER_exponent'],next_obs_loss) * self.Lambda + reward_loss * (1 - self.Lambda)
 
                 packed_loss = rnn_utils.PackedSequence(total_model_loss, packed_target_reward.batch_sizes, packed_target_reward.sorted_indices,
                                                        packed_target_reward.unsorted_indices)
@@ -460,7 +460,7 @@ class SAC(object):
                 # print(priorities , loss_batch)
 
                 # priorities = (priorities - self.args['MMD_min']) / np.abs(self.args['MMD_min'])
-                priorities = torch.pow(self.args['Model_PER_exponent'],priorities)
+                # priorities = torch.pow(self.args['Model_PER_exponent'],priorities)
                 # print('pppp_gooo',priorities)
 
                 if self.args['PER_type'] == 'Model':
@@ -475,6 +475,7 @@ class SAC(object):
         qf_losses = torch.zeros(updates)
         model_losses = torch.zeros(updates)
         policy_losses = torch.zeros(updates)
+        reward_model_losses = torch.zeros(updates)
         # print(list(range(updates)))
         for i_updates in range(updates):
             self.update_to_q += 1
@@ -648,7 +649,8 @@ class SAC(object):
                     total_model_loss = next_obs_loss * self.Lambda + reward_loss * (1 - self.Lambda)
 
                     if self.args['PER_type'] == 'Model' or self.args['PER_type'] == 'Both':
-                        packed_loss = rnn_utils.PackedSequence(total_model_loss.detach(), packed_target_reward.batch_sizes,
+                        transformed_loss = torch.pow(self.args['Model_PER_exponent'],next_obs_loss) * self.Lambda + reward_loss * (1 - self.Lambda)
+                        packed_loss = rnn_utils.PackedSequence(transformed_loss.detach(), packed_target_reward.batch_sizes,
                                                                packed_target_reward.sorted_indices,
                                                                packed_target_reward.unsorted_indices)
 
@@ -663,7 +665,7 @@ class SAC(object):
                         priorities = torch.div(priorities, loss_batch.to(self.device))
 
                         # priorities = (priorities - self.args['MMD_min']) / np.abs(self.args['MMD_min'])
-                        priorities = torch.pow(self.args['Model_PER_exponent'],priorities)
+                        # priorities = torch.pow(self.args['Model_PER_exponent'],priorities)
                         if self.args['PER_type'] == 'Both':
                             priorities_model = priorities
                         # print('ppppppppp',priorities)
@@ -681,6 +683,7 @@ class SAC(object):
 
                 # ais_z = ais_z.detach
                 model_losses[i_updates] = total_model_loss
+                reward_model_losses[i_updates] = reward_loss.mean()
 
                 # assert False
 
@@ -853,6 +856,7 @@ class SAC(object):
         # assert False
         qf_losses = qf_losses.mean()
         model_losses = model_losses.mean()
+        reward_model_losses = reward_model_losses.mean()
         # if self.rl_alg == 'SAC':
         #     policy_losses = policy_losses.mean()
         if self.rl_alg == 'QL':
@@ -862,7 +866,7 @@ class SAC(object):
         # # if self.model_alg == 'None':
         # hard_update(self.rho_cpu, self.rho)
 
-        return qf_losses.item(), policy_losses.item(), model_losses
+        return qf_losses.item(), policy_losses.item(), model_losses , reward_model_losses
 
     def save_model(self, dir, seed):
         import os

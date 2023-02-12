@@ -171,6 +171,8 @@ class psi_net(nn.Module):
         obs_probs = self.fc2_d(x_d)
         if self.highdim == False:
             obs_probs = self.softmax(obs_probs)
+        if self.highdim == True:
+            reward = F.sigmoid(reward)
         return reward, obs_probs
 
     def predict_obs(self,x):
@@ -182,7 +184,10 @@ class psi_net(nn.Module):
 
     def predict_reward(self,x):
         x_r = F.elu(self.fc1_r(x))
-        return self.fc2_r(x_r)
+        reward = self.fc2_r(x_r)
+        if self.highdim == True:
+            reward = F.sigmoid(reward)
+        return reward
 
     def predict_final_flag(self,x):
         x_f = F.elu(self.fc1_f(x))
