@@ -1,6 +1,6 @@
 # POMDP_RL
 
-This repository contains code for solving Partially observable environments using off-policy model-free reinforcement learning algorithms such as Q-learning and Soft Actor-Critic.
+This repository contains code for solving Partially observable environments using off-policy model-free reinforcement learning algorithms such as Q-learning and Soft Actor-Critic. Our approach shows a significant boost in performance over traditional recurrent Q-learning on a wide variety of partially observable benchmarks.
 
 In this work we used two approaches for learning state representations for partially-observable environments:
 * **Generative model learning**
@@ -25,7 +25,7 @@ Three classes of experiments are presented (followed by their `env_name` input a
    - Rock Sample: `RockSampling`
    - Drone Surveillance: `DroneSurveillance`
  * **High-dimensional environments**
- - To be later added.
+   - Compatible with environments from the MiniGrid family. (Please note that pretrained observation encoders are used for compressing the observations. The encoder weights for many MiniGrid environments are included in the autoencoder folder.
 
 
 This program accepts the following command line arguments:
