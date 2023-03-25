@@ -69,7 +69,7 @@ class SAC(object):
 
 
 
-        self.policy = policy_net(action_space.n, self.AIS_state_size).to(self.device)
+        # self.policy = policy_net(action_space.n, self.AIS_state_size).to(self.device)
         double = False
         if self.args['replay_type'] == 'vanilla':
             double = True
@@ -86,19 +86,21 @@ class SAC(object):
 
         # if self.alg == 'SAC+AIS':
         self.rho = rho_net(num_inputs, action_space.n, self.AIS_state_size , args['QL_VAE_disable']).to(self.device)
+        self.rho_target = rho_net(num_inputs, action_space.n, self.AIS_state_size, args['QL_VAE_disable']).to(self.device)
         # self.rho_cpu = rho_net(num_inputs, action_space.n, self.AIS_state_size)
         if args['AIS_loss'] == 'MMD':
             self.psi = psi_net(num_inputs, action_space.n, self.AIS_state_size , highdim).to(self.device)
         elif args['AIS_loss'] == 'KL' and args['env_name'][:8] == 'MiniGrid':
             self.psi = psi_net_highdim_KL(num_inputs,action_space.n,self.AIS_state_size).to(self.device)
 
-        self.critic_optim = Adam(self.critic.parameters(), lr=args['rl_lr'])
-        self.policy_optim = Adam(self.policy.parameters(), lr=args['rl_lr'])
+        # self.critic_optim = Adam(self.critic.parameters(), lr=args['rl_lr'])
+        # self.policy_optim = Adam(self.policy.parameters(), lr=args['rl_lr'])
 
         if self.model_alg == 'AIS':
             self.AIS_optimizer = Adam(list(self.rho.parameters()) + list(self.psi.parameters()), lr=args['AIS_lr'])
+            self.critic_optim = Adam(self.critic.parameters(), lr=args['rl_lr'])
         if self.model_alg == 'None':
-            self.AIS_optimizer = Adam(self.rho.parameters(), lr=args['AIS_lr'])
+            self.critic_optim = Adam(list(self.rho.parameters()) + list(self.critic.parameters()), lr=args['rl_lr'])
 
         # if self.alg == 'SAC':
         #     self.rho_policy = rho_net_lowdim(num_inputs, action_space.n, self.AIS_state_size).to(self.device)
@@ -113,6 +115,8 @@ class SAC(object):
         # self.AIS_q_optim = Adam(self.rho_q.parameters() , lr=args.rnn_lr)
         # self.AIS_p_optim = Adam(self.rho_policy.parameters() , lr=args.rnn_lr)
         hard_update(self.critic_target, self.critic)
+        if self.model_alg == 'None':
+            hard_update(self.rho_target,self.rho)
         # hard_update(self.q_cpu, self.critic)
         # hard_update(self.rho_cpu, self.rho)
         # hard_update(self.policy_cpu, self.policy)
@@ -264,20 +268,33 @@ class SAC(object):
             _, hidden_burn_in = self.rho(batch_burn_in_hist, batch_size, batch_hidden, self.device,
                                          list(batch_burn_in_len_), self.args['replay_type'])
 
+
+
             hidden_burn_in[0][:, zero_idx, :] = batch_hidden[0][:, zero_idx, :]
             hidden_burn_in[1][:, zero_idx, :] = batch_hidden[1][:, zero_idx, :]
+
+            if self.model_alg == 'None':
+                _, target_hidden_burn_in = self.rho_target(batch_burn_in_hist, batch_size, batch_hidden, self.device,
+                                             list(batch_burn_in_len_), self.args['replay_type'])
+                target_hidden_burn_in[0][:, zero_idx, :] = batch_hidden[0][:, zero_idx, :]
+                target_hidden_burn_in[1][:, zero_idx, :] = batch_hidden[1][:, zero_idx, :]
 
             batch_learn_hist = torch.from_numpy(input_vals['batch_learn_hist']).to(self.device)
 
             ais_z, hidden = self.rho(batch_learn_hist, batch_size, hidden_burn_in, self.device,
                                      list(input_vals['batch_learn_forward_len']), self.args['replay_type'])
 
+            if self.model_alg == 'None':
+                target_ais_z, target_hidden = self.rho_target(batch_learn_hist, batch_size, target_hidden_burn_in, self.device,
+                                         list(input_vals['batch_learn_forward_len']), self.args['replay_type'])
 
 
 
             if self.args['PER_type'] == 'TD' or self.args['PER_type'] == 'Both':
 
                 unpacked_ais_z, lens_unpacked = pad_packed_sequence(ais_z, batch_first=True)
+                if self.model_alg == 'None':
+                    target_unpacked_ais_z, _ = pad_packed_sequence(target_ais_z, batch_first=True)
 
                 q_z = pack_padded_sequence(unpacked_ais_z, list(input_vals['batch_learn_len']), batch_first=True,
                                            enforce_sorted=False)
@@ -304,8 +321,13 @@ class SAC(object):
                 # print(packed_batch_forward_idx)
                 unpacked_batch_forward_idx, _ = pad_packed_sequence(packed_batch_forward_idx, batch_first=True)
 
-
-                ais_z_target = unpacked_ais_z.gather(1,
+                if self.model_alg == 'None':
+                    ais_z_target = unpacked_ais_z.gather(1,
+                                                         unpacked_batch_forward_idx.view(batch_size, -1, 1).expand(-1,
+                                                                                                                   -1,
+                                                                                                                   self.AIS_state_size).long()).detach()
+                if self.model_alg == 'AIS':
+                    ais_z_target = target_unpacked_ais_z.gather(1,
                                                      unpacked_batch_forward_idx.view(batch_size, -1, 1).expand(-1, -1,
                                                                                                                self.AIS_state_size).long()).detach()
                 # print(ais_z_target.shape,ais_z_target)
@@ -519,20 +541,18 @@ class SAC(object):
             # if self.model_alg == 'AIS':
             #     _, hidden_burn_in = self.rho(batch_burn_in_hist, batch_size, batch_hidden, self.device , list(batch_burn_in_len), self.args['replay_type'])
             # else:
-            # with torch.no_grad():
-            _, hidden_burn_in = self.rho(batch_burn_in_hist, batch_size, batch_hidden, self.device,
+            with torch.no_grad():
+                _, hidden_burn_in = self.rho(batch_burn_in_hist, batch_size, batch_hidden, self.device,
                                          list(batch_burn_in_len), self.args['replay_type'])
-            # else:
-            # with torch.no_grad():
-            # _, hidden_burn_in = self.rho(batch_burn_in_hist, batch_size, batch_hidden, self.device,
-            #                                  list(batch_burn_in_len))
 
-            # print(hidden_burn_in[0].shape)
-            #
-            # print(hidden_burn_in[0][:,zero_idx,:],hidden_burn_in[1][:,zero_idx,:])
-            #
             hidden_burn_in[0][:, zero_idx, :] = batch_hidden[0][:, zero_idx, :]
             hidden_burn_in[1][:, zero_idx, :] = batch_hidden[1][:, zero_idx, :]
+            if self.model_alg == 'None':
+                with torch.no_grad():
+                    _, target_hidden_burn_in = self.rho_target(batch_burn_in_hist, batch_size, batch_hidden, self.device,
+                                                 list(batch_burn_in_len), self.args['replay_type'])
+                    target_hidden_burn_in[0][:, zero_idx, :] = batch_hidden[0][:, zero_idx, :]
+                    target_hidden_burn_in[1][:, zero_idx, :] = batch_hidden[1][:, zero_idx, :]
             # print(hidden_burn_in)
             # print(list(batch_learn_forward_len))
 
@@ -545,6 +565,11 @@ class SAC(object):
             # print(list(batch_learn_forward_len))
             ais_z, hidden = self.rho(batch_learn_hist, batch_size, hidden_burn_in, self.device,
                                      list(batch_learn_forward_len), self.args['replay_type'])
+            if self.model_alg == 'None':
+                with torch.no_grad():
+                    target_ais_z, target_hidden = self.rho_target(batch_learn_hist, batch_size, target_hidden_burn_in, self.device,
+                                             list(batch_learn_forward_len), self.args['replay_type'])
+
             if self.model_alg == 'AIS':
                 torch_model_input_act = torch.from_numpy(batch_model_input_act).to(self.device)
                 # print(torch_model_input_act.shape)
@@ -743,15 +768,21 @@ class SAC(object):
                 # print(batch_forward_idx)
                 # print(unpacked_batch_forward_idx)
                 # print(unpacked_ais_z.shape,unpacked_ais_z)
-
-                ais_z_target = unpacked_ais_z.gather(1,
-                                                     unpacked_batch_forward_idx.view(batch_size, -1, 1).expand(-1, -1,
-                                                                                                               self.AIS_state_size).long()).detach()
-                # print(ais_z_target.shape,ais_z_target)
-                # print(ais_z_target.shape,ais_z_target)
-                # print(list(batch_learn_len))
+                if self.model_alg == 'None':
+                    target_unpacked_ais_z, _ = pad_packed_sequence(target_ais_z, batch_first=True)
+                    ais_z_target = target_unpacked_ais_z.gather(1,
+                                                         unpacked_batch_forward_idx.view(batch_size, -1, 1).expand(-1,
+                                                                                                                   -1,
+                                                                                                                   self.AIS_state_size).long()).detach()
+                if self.model_alg == 'AIS':
+                    ais_z_target = unpacked_ais_z.gather(1,
+                                                         unpacked_batch_forward_idx.view(batch_size, -1, 1).expand(-1, -1,
+                                                                                                                   self.AIS_state_size).long()).detach()
+                    # print(ais_z_target.shape,ais_z_target)
+                    # print(ais_z_target.shape,ais_z_target)
+                    # print(list(batch_learn_len))
                 packed_target_ais = pack_padded_sequence(ais_z_target, list(batch_learn_len), batch_first=True,
-                                                         enforce_sorted=False)
+                                                             enforce_sorted=False)
 
                 qf_target = self.critic_target(packed_target_ais.data)
                 # print(qf_target.shape)
@@ -831,8 +862,8 @@ class SAC(object):
 
             self.critic_optim.zero_grad()
             # if self.model_alg == 'None':
-            self.AIS_optimizer.zero_grad()
             if self.model_alg == 'AIS':
+                self.AIS_optimizer.zero_grad()
                 total_model_loss.backward()
                 if self.args['AIS_loss'] == 'KL':
                     torch.nn.utils.clip_grad_norm_(list(self.rho.parameters()) + list(self.psi.parameters()),
@@ -840,16 +871,17 @@ class SAC(object):
                 self.AIS_optimizer.step()
             qf_loss.backward()
             self.critic_optim.step()
-            if self.model_alg == 'None':
-                self.AIS_optimizer.step()
+            # if self.model_alg == 'None':
+            #     self.AIS_optimizer.step()
 
             if self.args['PER'] is True:
                 memory.update_priorities(tree_idx, priorities.detach().cpu().numpy())
 
         if self.update_to_q % self.target_update_interval == 0:
-            # hard_update(self.critic_target, self.critic)
-            # print('hard update')
-            soft_update(self.critic_target, self.critic, self.tau)
+            hard_update(self.critic_target, self.critic)
+            hard_update(self.rho_target, self.rho)
+            print('hard update')
+            # soft_update(self.critic_target, self.critic, self.tau)
             # if self.alg == 'SAC':
             #     soft_update(self.critic_rho_target, self.rho_q, self.tau)
 
@@ -873,23 +905,24 @@ class SAC(object):
         path = os.path.join(dir, 'Seed_' + str(seed) + '_models.pt')
 
         torch.save({
+            'rho_target': self.rho_target.state_dict(),
             'AIS_rho': self.rho.state_dict(),
             'AIS_psi': self.psi.state_dict(),
             'Q_target': self.critic_target.state_dict(),
-            'Q': self.critic.state_dict(),
-            'policy': self.policy.state_dict(),
+            'Q': self.critic.state_dict()
         }, path)
 
     def load_model(self, path):
 
         checkpoint = torch.load(path)
 
-        self.policy.load_state_dict(checkpoint['policy'])
+        # self.policy.load_state_dict(checkpoint['policy'])
         # self.policy_cpu.load_state_dict(checkpoint['policy'])
         self.critic.load_state_dict(checkpoint['Q'])
         self.critic_target.load_state_dict(checkpoint['Q_target'])
         # self.q_cpu.load_state_dict(checkpoint['Q'])
         self.rho.load_state_dict(checkpoint['AIS_rho'])
+        self.rho_target.load_state_dict(checkpoint['rho_target'])
         # self.rho_cpu.load_state_dict(checkpoint['AIS_rho'])
         self.psi.load_state_dict(checkpoint['AIS_psi'])
 

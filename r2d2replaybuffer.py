@@ -358,6 +358,7 @@ class r2d2_ReplayMemory:
             # print(is_weight_td)
             # print(is_weight_model)
         # print(idx,tree_idx)
+        torch_idx = torch_idx.long()
 
 
         batch_burn_in_hist = self.buffer_burn_in_history[idx,:,:]

@@ -29,7 +29,7 @@ def main():
     parser.add_argument('--random_actions_until',type=int, default=0)
     parser.add_argument('--start_updates_to_model_after', type=int, default=0)
     parser.add_argument('--start_updates_to_p_q_after', type=int, default=0)
-    parser.add_argument('--target_update_interval', type=int, default=1)
+    parser.add_argument('--target_update_interval', type=int, default=100)
     parser.add_argument('--replay_size', type=int, default=50000)
     parser.add_argument('--cuda', type=bool, default=False)
     parser.add_argument('--AIS_lambda', type=float, default=0.99)
