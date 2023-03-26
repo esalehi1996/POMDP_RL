@@ -279,7 +279,10 @@ def make_video(env , sac , args , seed , state_size):
 
 
 def log_test_and_save(env , sac , writer , args , avg_reward , avg_q_loss , avg_p_loss , avg_model_loss , avg_reward_loss , updates , model_updates , k_episode , i_episode , total_numsteps , avg_episode_steps , state_size , seed ):
-    sac.save_model(args['logdir'],seed)
+    if total_numsteps % int(args['num_steps']/10) == int(args['num_steps']/10)  - 1:
+        sac.save_model(args['logdir'],seed , total_numsteps)
+    else:
+        sac.save_model(args['logdir'], seed, -1)
     avg_running_reward = avg_reward / k_episode
     avg_reward = 0.
     avg_discount_adj_reward = 0.

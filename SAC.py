@@ -296,6 +296,7 @@ class SAC(object):
                 if self.model_alg == 'None':
                     target_unpacked_ais_z, _ = pad_packed_sequence(target_ais_z, batch_first=True)
 
+
                 q_z = pack_padded_sequence(unpacked_ais_z, list(input_vals['batch_learn_len']), batch_first=True,
                                            enforce_sorted=False)
 
@@ -321,12 +322,12 @@ class SAC(object):
                 # print(packed_batch_forward_idx)
                 unpacked_batch_forward_idx, _ = pad_packed_sequence(packed_batch_forward_idx, batch_first=True)
 
-                if self.model_alg == 'None':
+                if self.model_alg == 'AIS':
                     ais_z_target = unpacked_ais_z.gather(1,
                                                          unpacked_batch_forward_idx.view(batch_size, -1, 1).expand(-1,
                                                                                                                    -1,
                                                                                                                    self.AIS_state_size).long()).detach()
-                if self.model_alg == 'AIS':
+                if self.model_alg == 'None':
                     ais_z_target = target_unpacked_ais_z.gather(1,
                                                      unpacked_batch_forward_idx.view(batch_size, -1, 1).expand(-1, -1,
                                                                                                                self.AIS_state_size).long()).detach()
@@ -880,7 +881,7 @@ class SAC(object):
         if self.update_to_q % self.target_update_interval == 0:
             hard_update(self.critic_target, self.critic)
             hard_update(self.rho_target, self.rho)
-            print('hard update')
+            # print('hard update')
             # soft_update(self.critic_target, self.critic, self.tau)
             # if self.alg == 'SAC':
             #     soft_update(self.critic_rho_target, self.rho_q, self.tau)
@@ -900,9 +901,12 @@ class SAC(object):
 
         return qf_losses.item(), policy_losses.item(), model_losses , reward_model_losses
 
-    def save_model(self, dir, seed):
+    def save_model(self, dir, seed, total_numsteps):
         import os
-        path = os.path.join(dir, 'Seed_' + str(seed) + '_models.pt')
+        if total_numsteps == -1:
+            path = os.path.join(dir, 'Seed_' + str(seed) + '_models.pt')
+        else:
+            path = os.path.join(dir, 'Seed_' + str(seed) + '_total_numsteps_' + str(total_numsteps) + '_models.pt')
 
         torch.save({
             'rho_target': self.rho_target.state_dict(),
