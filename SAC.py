@@ -242,9 +242,9 @@ class SAC(object):
             model_losses = 0
             qf_losses, policy_losses = self.update_parameters_vanilla(memory,batch_size,updates)
         if self.args['replay_type'] == 'r2d2':
-            qf_losses, policy_losses , model_losses , reward_losses = self.update_parameters_r2d2(memory, batch_size, updates)
+            qf_losses, policy_losses , model_losses , reward_losses , mmd_est = self.update_parameters_r2d2(memory, batch_size, updates)
 
-        return qf_losses, policy_losses , model_losses , reward_losses
+        return qf_losses, policy_losses , model_losses , reward_losses , mmd_est
 
     def compute_priorities(self, batch_size , input_vals):
         # print(input_vals)
@@ -331,6 +331,13 @@ class SAC(object):
                     ais_z_target = target_unpacked_ais_z.gather(1,
                                                      unpacked_batch_forward_idx.view(batch_size, -1, 1).expand(-1, -1,
                                                                                                                self.AIS_state_size).long()).detach()
+                    ais_z_for_target_action = unpacked_ais_z.gather(1,
+                                                                    unpacked_batch_forward_idx.view(batch_size, -1,
+                                                                                                    1).expand(-1, -1,
+                                                                                                              self.AIS_state_size).long()).detach()
+                    packed_ais_z_for_target_action = pack_padded_sequence(ais_z_for_target_action,
+                                                                          list(input_vals['batch_learn_len']), batch_first=True,
+                                                                          enforce_sorted=False)
                 # print(ais_z_target.shape,ais_z_target)
                 # print(ais_z_target.shape,ais_z_target)
                 # print(list(batch_learn_len))
@@ -339,7 +346,11 @@ class SAC(object):
 
                 qf_target = self.critic_target(packed_target_ais.data)
 
-                max_idx = self.critic(packed_target_ais.data).max(1)[1]
+
+                if self.model_alg == 'None':
+                    max_idx = self.critic(packed_ais_z_for_target_action.data).max(1)[1]
+                if self.model_alg == 'AIS':
+                    max_idx = self.critic(packed_target_ais.data).max(1)[1]
 
                 # print(packed_target_ais.data.shape)
                 # print(qf_target.shape)
@@ -499,6 +510,7 @@ class SAC(object):
         model_losses = torch.zeros(updates)
         policy_losses = torch.zeros(updates)
         reward_model_losses = torch.zeros(updates)
+        mmd_est_ls = torch.zeros(updates)
         # print(list(range(updates)))
         for i_updates in range(updates):
             self.update_to_q += 1
@@ -596,12 +608,25 @@ class SAC(object):
                 if self.args['AIS_loss'] == 'MMD':
                     predicted_obs = self.psi.predict_obs(psi_input)
 
+                    # print(predicted_obs.shape)
+
                     pow = torch.pow(torch.norm(predicted_obs, dim=1), 2)
+
+                    # print(pow.shape)
+                    # print(torch.pow(torch.norm(next_obs_packed.data, dim=1), 2).shape)
+                    #
+                    # print(next_obs_packed.data.shape,next_obs_packed.data)
+                    # print(predicted_obs.shape,predicted_obs)
+                    #
+                    # print(next_obs_packed.data[0],predicted_obs[0])
+                    # print(torch.sum(next_obs_packed.data[0]*predicted_obs[0]))
 
                     if self.args['env_name'][:8] == 'MiniGrid':
                         dot = torch.matmul(next_obs_packed.data.view(pow.shape[0], 1, self.obs_dim),
                                            predicted_obs.view(pow.shape[0], self.obs_dim, 1))
                         next_obs_loss = ((pow - 2 * dot.view(-1)) * batch_final_flag_for_model_packed.data)
+                        obs_pow = torch.pow(torch.norm(next_obs_packed.data, dim=1), 2)
+                        mmd_est = ((obs_pow + pow - 2 * dot.view(-1)) * batch_final_flag_for_model_packed.data)
 
 
 
@@ -611,6 +636,12 @@ class SAC(object):
                                            predicted_obs.view(pow.shape[0], self.obs_dim + 1, 1))
 
                         next_obs_loss = (pow - 2 * dot.view(-1)).mean()
+
+                    # print(dot.shape)
+                    # for i in range(30):
+                    #     print(torch.sum(next_obs_packed.data[i] * predicted_obs[i])-dot[i][0])
+
+
 
 
 
@@ -703,6 +734,7 @@ class SAC(object):
 
 
 
+
                 else:
 
                     total_model_loss = (next_obs_loss * self.Lambda + reward_loss * (1 - self.Lambda)).mean()
@@ -710,6 +742,7 @@ class SAC(object):
                 # ais_z = ais_z.detach
                 model_losses[i_updates] = total_model_loss
                 reward_model_losses[i_updates] = reward_loss.mean()
+                mmd_est_ls[i_updates] = mmd_est.mean()
 
                 # assert False
 
@@ -775,6 +808,11 @@ class SAC(object):
                                                          unpacked_batch_forward_idx.view(batch_size, -1, 1).expand(-1,
                                                                                                                    -1,
                                                                                                                    self.AIS_state_size).long()).detach()
+                    ais_z_for_target_action = unpacked_ais_z.gather(1,
+                                                         unpacked_batch_forward_idx.view(batch_size, -1, 1).expand(-1, -1,
+                                                                                                                   self.AIS_state_size).long()).detach()
+                    packed_ais_z_for_target_action = pack_padded_sequence(ais_z_for_target_action, list(batch_learn_len), batch_first=True,
+                                                             enforce_sorted=False)
                 if self.model_alg == 'AIS':
                     ais_z_target = unpacked_ais_z.gather(1,
                                                          unpacked_batch_forward_idx.view(batch_size, -1, 1).expand(-1, -1,
@@ -790,7 +828,10 @@ class SAC(object):
                 # qf_target = self.critic_target(packed_target_ais.data).max(1)[0]
                 # print(qf_target.shape)
                 # assert False
-                max_idx = self.critic(packed_target_ais.data).max(1)[1]
+                if self.model_alg == 'AIS':
+                    max_idx = self.critic(packed_target_ais.data).max(1)[1]
+                if self.model_alg == 'None':
+                    max_idx = self.critic(packed_ais_z_for_target_action.data).max(1)[1]
 
                 # print(packed_target_ais.data.shape)
                 # print(qf_target.shape)
@@ -890,6 +931,7 @@ class SAC(object):
         qf_losses = qf_losses.mean()
         model_losses = model_losses.mean()
         reward_model_losses = reward_model_losses.mean()
+        mmd_est_ls = mmd_est_ls.mean()
         # if self.rl_alg == 'SAC':
         #     policy_losses = policy_losses.mean()
         if self.rl_alg == 'QL':
@@ -899,7 +941,7 @@ class SAC(object):
         # # if self.model_alg == 'None':
         # hard_update(self.rho_cpu, self.rho)
 
-        return qf_losses.item(), policy_losses.item(), model_losses , reward_model_losses
+        return qf_losses.item(), policy_losses.item(), model_losses , reward_model_losses , mmd_est_ls.item()
 
     def save_model(self, dir, seed, total_numsteps):
         import os
