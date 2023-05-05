@@ -100,6 +100,7 @@ class SAC(object):
             self.AIS_optimizer = Adam(list(self.rho.parameters()) + list(self.psi.parameters()), lr=args['AIS_lr'])
             self.critic_optim = Adam(self.critic.parameters(), lr=args['rl_lr'])
         if self.model_alg == 'None':
+            self.AIS_optimizer = Adam(self.psi.parameters(), lr=args['AIS_lr'])
             self.critic_optim = Adam(list(self.rho.parameters()) + list(self.critic.parameters()), lr=args['rl_lr'])
 
         # if self.alg == 'SAC':
@@ -511,6 +512,7 @@ class SAC(object):
         policy_losses = torch.zeros(updates)
         reward_model_losses = torch.zeros(updates)
         mmd_est_ls = torch.zeros(updates)
+        # obs_pow_ls = torch.zeros(updates)
         # print(list(range(updates)))
         for i_updates in range(updates):
             self.update_to_q += 1
@@ -583,15 +585,18 @@ class SAC(object):
                     target_ais_z, target_hidden = self.rho_target(batch_learn_hist, batch_size, target_hidden_burn_in, self.device,
                                              list(batch_learn_forward_len), self.args['replay_type'])
 
-            if self.model_alg == 'AIS':
+            # if self.model_alg == 'AIS':
+            if True:
                 torch_model_input_act = torch.from_numpy(batch_model_input_act).to(self.device)
                 # print(torch_model_input_act.shape)
                 input_psi_acts_packed = pack_padded_sequence(torch_model_input_act, list(batch_learn_forward_len),
                                                              batch_first=True,
                                                              enforce_sorted=False)
 
-
-                psi_input = torch.cat((ais_z.data, input_psi_acts_packed.data), 1).to(self.device)
+                if self.model_alg == 'AIS':
+                    psi_input = torch.cat((ais_z.data, input_psi_acts_packed.data), 1).to(self.device)
+                if self.model_alg == 'None':
+                    psi_input = torch.cat((ais_z.data.detach(), input_psi_acts_packed.data), 1).to(self.device)
 
                 next_obs = torch.from_numpy(batch_next_obs).to(self.device)
 
@@ -612,7 +617,7 @@ class SAC(object):
 
                     pow = torch.pow(torch.norm(predicted_obs, dim=1), 2)
 
-                    # print(pow.shape)
+
                     # print(torch.pow(torch.norm(next_obs_packed.data, dim=1), 2).shape)
                     #
                     # print(next_obs_packed.data.shape,next_obs_packed.data)
@@ -627,7 +632,7 @@ class SAC(object):
                         next_obs_loss = ((pow - 2 * dot.view(-1)) * batch_final_flag_for_model_packed.data)
                         obs_pow = torch.pow(torch.norm(next_obs_packed.data, dim=1), 2)
                         mmd_est = ((obs_pow + pow - 2 * dot.view(-1)) * batch_final_flag_for_model_packed.data)
-
+                        # obs_pow = obs_pow * batch_final_flag_for_model_packed.data
 
 
 
@@ -743,6 +748,7 @@ class SAC(object):
                 model_losses[i_updates] = total_model_loss
                 reward_model_losses[i_updates] = reward_loss.mean()
                 mmd_est_ls[i_updates] = mmd_est.mean()
+                # obs_pow_ls[i_updates] = obs_pow.mean()
 
                 # assert False
 
@@ -904,13 +910,13 @@ class SAC(object):
 
             self.critic_optim.zero_grad()
             # if self.model_alg == 'None':
-            if self.model_alg == 'AIS':
-                self.AIS_optimizer.zero_grad()
-                total_model_loss.backward()
-                if self.args['AIS_loss'] == 'KL':
-                    torch.nn.utils.clip_grad_norm_(list(self.rho.parameters()) + list(self.psi.parameters()),
-                                                   max_norm=1.0, error_if_nonfinite=True)
-                self.AIS_optimizer.step()
+            # if self.model_alg == 'AIS':
+            self.AIS_optimizer.zero_grad()
+            total_model_loss.backward()
+            # if self.args['AIS_loss'] == 'KL':
+            #     torch.nn.utils.clip_grad_norm_(list(self.rho.parameters()) + list(self.psi.parameters()),
+            #                                        max_norm=1.0, error_if_nonfinite=True)
+            self.AIS_optimizer.step()
             qf_loss.backward()
             self.critic_optim.step()
             # if self.model_alg == 'None':
@@ -932,6 +938,7 @@ class SAC(object):
         model_losses = model_losses.mean()
         reward_model_losses = reward_model_losses.mean()
         mmd_est_ls = mmd_est_ls.mean()
+        # obs_pow_ls = obs_pow_ls.mean()
         # if self.rl_alg == 'SAC':
         #     policy_losses = policy_losses.mean()
         if self.rl_alg == 'QL':

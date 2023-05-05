@@ -67,6 +67,27 @@ class r2d2_ReplayMemory:
 
         self.full = False
 
+    def save_buffer(self,dir  , seed):
+        import os
+
+        path = os.path.join(dir, 'Seed_' + str(seed) + '_replaybuffer.pt')
+
+        torch.save({
+            'buffer_burn_in_history': self.buffer_burn_in_history,
+            'buffer_learning_history': self.buffer_learning_history,
+            'buffer_current_act': self.buffer_current_act,
+            'buffer_next_obs': self.buffer_next_obs,
+            'buffer_rewards': self.buffer_rewards,
+            'buffer_model_target_rewards': self.buffer_model_target_rewards,
+            'buffer_burn_in_len': self.buffer_burn_in_len,
+            'buffer_forward_idx': self.buffer_forward_idx,
+            'buffer_learning_len': self.buffer_learning_len,
+            'buffer_hidden_1': self.buffer_hidden[0],
+            'buffer_hidden_2': self.buffer_hidden[1],
+            'buffer_gammas': self.buffer_gammas,
+            'buffer_final_flag_for_model': self.buffer_final_flag_for_model,
+        }, path)
+
     def reset(self, seed):
         random.seed(seed)
 
