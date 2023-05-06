@@ -29,6 +29,7 @@ def run_exp(args):
     list_of_discount_test_rewards_allseeds = []
     list_of_nonzero_reward_count_allseeds = []
     list_of_mmd_est_allseeds = []
+    list_of_reward_loss_allseeds = []
     if args['env_name'] == 'Tiger':
         env = TigerEnv()
         max_env_steps = args['max_env_steps']
@@ -84,6 +85,7 @@ def run_exp(args):
         list_of_discount_test_rewards = []
         list_of_nonzero_reward_count = []
         list_of_mmd_est = []
+        list_of_reward_loss = []
         print('-------------------------------------')
         print('seed number '+str(seed)+' running')
         print('-------------------------------------')
@@ -188,6 +190,7 @@ def run_exp(args):
                     list_of_nonzero_reward_count.append(num_nonzero_rewards/args['logging_freq'])
 
                     list_of_mmd_est.append(avg_mmd_est/model_updates)
+                    list_of_reward_loss.append(avg_reward_loss/model_updates)
 
                     avg_mmd_est = 0
                     num_nonzero_rewards = 0
@@ -216,11 +219,12 @@ def run_exp(args):
         # print('making_videoo')
         if args['env_name'][:8] == 'MiniGrid':
             make_video(env,sac,args,seed , state_size)
-        memory.save_buffer(args['logdir'],seed)
+        # memory.save_buffer(args['logdir'],seed)
         list_of_test_rewards_allseeds.append(list_of_test_rewards)
         list_of_discount_test_rewards_allseeds.append(list_of_discount_test_rewards)
         list_of_nonzero_reward_count_allseeds.append(list_of_nonzero_reward_count)
         list_of_mmd_est_allseeds.append(list_of_mmd_est)
+        list_of_reward_loss_allseeds.append(list_of_reward_loss)
 
 
 
@@ -236,17 +240,20 @@ def run_exp(args):
     arr_r = np.zeros([args['num_seeds'], args['num_steps']//args['logging_freq']], dtype=np.float32)
     arr_d_r = np.zeros([args['num_seeds'], args['num_steps']//args['logging_freq']], dtype=np.float32)
     arr_count_r = np.zeros([args['num_seeds'], args['num_steps']//args['logging_freq']], dtype=np.float32)
-    arrd_mmd_est = np.zeros([args['num_seeds'], args['num_steps']//args['logging_freq']], dtype=np.float32)
+    arr_mmd_est = np.zeros([args['num_seeds'], args['num_steps']//args['logging_freq']], dtype=np.float32)
+    arr_reward_loss = np.zeros([args['num_seeds'], args['num_steps']//args['logging_freq']], dtype=np.float32)
     for i in range(args['num_seeds']):
         arr_r[i,:] = np.array(list_of_test_rewards_allseeds[i])
         arr_d_r[i,:] = np.array(list_of_discount_test_rewards_allseeds[i])
         arr_count_r[i,:] = np.array(list_of_nonzero_reward_count_allseeds[i])
-        arrd_mmd_est[i,:] = np.array(list_of_mmd_est_allseeds[i])
+        arr_mmd_est[i,:] = np.array(list_of_mmd_est_allseeds[i])
+        arr_reward_loss[i,:] = np.array(list_of_reward_loss_allseeds[i])
 
     np.save(args['logdir']+'/'+args['exp_name']+'_arr_r',arr_r)
     np.save(args['logdir'] + '/'+args['exp_name']+'_arr_d_r', arr_d_r)
     np.save(args['logdir'] + '/'+args['exp_name']+'_arr_freq_nonzero_rewards', arr_count_r)
-    np.save(args['logdir'] + '/'+args['exp_name']+'_arr_mmd_est', arrd_mmd_est)
+    np.save(args['logdir'] + '/'+args['exp_name']+'_arr_mmd_est', arr_mmd_est)
+    np.save(args['logdir'] + '/'+args['exp_name']+'_arr_reward_loss', arr_reward_loss)
     # print(arr_r)
     # print(arr_d_r)
 

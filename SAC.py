@@ -627,12 +627,18 @@ class SAC(object):
                     # print(torch.sum(next_obs_packed.data[0]*predicted_obs[0]))
 
                     if self.args['env_name'][:8] == 'MiniGrid':
+
+                        # print(next_obs_packed.data.shape,predicted_obs.shape)
                         dot = torch.matmul(next_obs_packed.data.view(pow.shape[0], 1, self.obs_dim),
                                            predicted_obs.view(pow.shape[0], self.obs_dim, 1))
                         next_obs_loss = ((pow - 2 * dot.view(-1)) * batch_final_flag_for_model_packed.data)
                         obs_pow = torch.pow(torch.norm(next_obs_packed.data, dim=1), 2)
                         mmd_est = ((obs_pow + pow - 2 * dot.view(-1)) * batch_final_flag_for_model_packed.data)
                         # obs_pow = obs_pow * batch_final_flag_for_model_packed.data
+
+                        # print(dot.view(-1).shape)
+                        # print(dot.view(-1).mean())
+
 
 
 
@@ -948,7 +954,7 @@ class SAC(object):
         # # if self.model_alg == 'None':
         # hard_update(self.rho_cpu, self.rho)
 
-        return qf_losses.item(), policy_losses.item(), model_losses , reward_model_losses , mmd_est_ls.item()
+        return qf_losses.item(), policy_losses.item(), model_losses.item() , reward_model_losses.item() , mmd_est_ls.item()
 
     def save_model(self, dir, seed, total_numsteps):
         import os
