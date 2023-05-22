@@ -585,8 +585,8 @@ class SAC(object):
                     target_ais_z, target_hidden = self.rho_target(batch_learn_hist, batch_size, target_hidden_burn_in, self.device,
                                              list(batch_learn_forward_len), self.args['replay_type'])
 
-            # if self.model_alg == 'AIS':
-            if True:
+            if self.model_alg == 'AIS':
+            # if True:
                 torch_model_input_act = torch.from_numpy(batch_model_input_act).to(self.device)
                 # print(torch_model_input_act.shape)
                 input_psi_acts_packed = pack_padded_sequence(torch_model_input_act, list(batch_learn_forward_len),
