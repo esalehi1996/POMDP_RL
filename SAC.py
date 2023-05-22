@@ -916,13 +916,14 @@ class SAC(object):
 
             self.critic_optim.zero_grad()
             # if self.model_alg == 'None':
-            # if self.model_alg == 'AIS':
-            self.AIS_optimizer.zero_grad()
-            total_model_loss.backward()
+            if self.model_alg == 'AIS':
+                self.AIS_optimizer.zero_grad()
+                total_model_loss.backward()
+                self.AIS_optimizer.step()
             # if self.args['AIS_loss'] == 'KL':
             #     torch.nn.utils.clip_grad_norm_(list(self.rho.parameters()) + list(self.psi.parameters()),
             #                                        max_norm=1.0, error_if_nonfinite=True)
-            self.AIS_optimizer.step()
+
             qf_loss.backward()
             self.critic_optim.step()
             # if self.model_alg == 'None':
