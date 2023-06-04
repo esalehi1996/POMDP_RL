@@ -58,6 +58,7 @@ def main():
     parser.add_argument('--PER_e', type=float, default=1e-7)
     parser.add_argument('--TD_loss', type=str, default='mse')
     parser.add_argument('--EPS_decay_type', type=str, default='exponential')
+    parser.add_argument('--PER_eta', type=float, default=0.9)
     args = parser.parse_args()
 
     # convert to dictionary
