@@ -12,6 +12,7 @@ from SAC import SAC
 from Replaybuffer import Rec_ReplayMemory
 from r2d2replaybuffer import r2d2_ReplayMemory
 from torch.utils.tensorboard import SummaryWriter
+import torch
 import gym
 import gym_minigrid
 from gym_minigrid.wrappers import *
@@ -81,6 +82,9 @@ def run_exp(args):
         memory = r2d2_ReplayMemory(args['replay_size'], state_size, env.action_space.n, max_env_steps, args)
         print('r2d2')
     for seed in range(args['num_seeds']):
+        np.random.seed(seed)
+        torch.manual_seed(seed)
+        env.seed(seed)
         list_of_test_rewards = []
         list_of_discount_test_rewards = []
         list_of_nonzero_reward_count = []
