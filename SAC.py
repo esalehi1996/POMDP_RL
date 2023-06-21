@@ -409,9 +409,9 @@ class SAC(object):
                 # print(priorities)
                 # print(torch.div(priorities,loss_batch.to(self.device)))
                 # print(unpacked_loss.max(1)[0])
-                # priorities = torch.div(priorities,loss_batch.to(self.device))
+                priorities = torch.div(priorities,loss_batch.to(self.device))
 
-                priorities = (1 - self.args['PER_eta']) * torch.div(priorities, loss_batch.to(self.device)) + self.args['PER_eta'] * unpacked_loss.max(1)[0]
+                # priorities = (1 - self.args['PER_eta']) * torch.div(priorities, loss_batch.to(self.device)) + self.args['PER_eta'] * unpacked_loss.max(1)[0]
 
 
 
@@ -904,10 +904,11 @@ class SAC(object):
                     unpacked_diff, diff_batch = pad_packed_sequence(packed_diff, batch_first=True)
 
                     priorities = torch.sum(unpacked_diff, 1)
+                    priorities = torch.div(priorities, diff_batch.to(self.device))
                     # print(torch.div(priorities, diff_batch.to(self.device)))
                     # print(unpacked_diff.max(1)[0])
 
-                    priorities = (1 - self.args['PER_eta']) * torch.div(priorities, diff_batch.to(self.device)) +  self.args['PER_eta'] * unpacked_diff.max(1)[0]
+                    # priorities = (1 - self.args['PER_eta']) * torch.div(priorities, diff_batch.to(self.device)) +  self.args['PER_eta'] * unpacked_diff.max(1)[0]
 
                     # print(priorities)
 
