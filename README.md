@@ -8,11 +8,6 @@ In this work we used two approaches for learning state representations for parti
 * **No seperate model learning (ND-R2D@2) **
   - In this approach the model is not trained individually and the recurrent component is trained alongside the Q and policy network during the reinforcement learning phase.
 
-There are two options for the reinforcement learning algorithm:
-* **Soft Actor-Critic**
-  - This uses the Discrete environment case of the Soft Actor-Critic algorithm. (https://arxiv.org/abs/1910.07207)
-* **Q-learning**
-  - In this case we are using a Q-learning implementation using recurrent nets, double Q networks and polyak averaging for target Q updates.
 
 The non-distributed variant of R2D2 is used as the RL algorithm. (https://www.deepmind.com/publications/recurrent-experience-replay-in-distributed-reinforcement-learning)
 
