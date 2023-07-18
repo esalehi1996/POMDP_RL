@@ -64,6 +64,7 @@ def run_exp(args):
     #     max_env_steps = args['max_env_steps']
     elif args['env_name'][:8] == 'MiniGrid':
         env = gym.make(args['env_name'])
+        test_env = gym.make(args['env_name'])
         max_env_steps = args['max_env_steps']
         if args['max_env_steps'] == -1:
             max_env_steps = 400
@@ -85,6 +86,7 @@ def run_exp(args):
         np.random.seed(seed)
         torch.manual_seed(seed)
         env.seed(seed)
+        test_env.seed(seed)
         list_of_test_rewards = []
         list_of_discount_test_rewards = []
         list_of_nonzero_reward_count = []
@@ -130,7 +132,7 @@ def run_exp(args):
             reward = 0
             # ls_rewards.append(0.)
             # ls_actions.append(0.)
-
+            evalll = False
             while not done:
                 # print('staaart')
                 if args['env_name'][:8] == 'MiniGrid':
@@ -158,6 +160,8 @@ def run_exp(args):
                     start = False
 
                 next_state, reward, done, _ = env.step(action)  # Step
+                # if evalll is True:
+                #     print(done, "done flag!!")
                 ls_actions.append(action)
                 ls_rewards.append(reward)
                 # if args['model_alg'] == 'AIS' and args['replay_type'] == 'vanilla':
@@ -187,7 +191,9 @@ def run_exp(args):
 
                 state = next_state
                 if total_numsteps % args['logging_freq'] == args['logging_freq']-1:
-                    avg_reward , avg_discount_adj_reward = log_test_and_save(env, sac, writer, args, avg_reward, avg_q_loss, avg_p_loss, avg_mmd_est, avg_model_loss , avg_reward_loss, updates,
+                    # print(episode_steps)
+                    # evalll = True
+                    avg_reward , avg_discount_adj_reward = log_test_and_save(test_env, sac, writer, args, avg_reward, avg_q_loss, avg_p_loss, avg_mmd_est, avg_model_loss , avg_reward_loss, updates,
                                       model_updates, k_episode, i_episode, total_numsteps, avg_episode_steps, state_size , seed  , num_nonzero_rewards)
                     list_of_test_rewards.append(avg_reward)
                     list_of_discount_test_rewards.append(avg_discount_adj_reward)
@@ -210,6 +216,9 @@ def run_exp(args):
                 if episode_steps >= max_env_steps:
                     break
             # print('gg')
+            # if evalll is True:
+            #     evalll = False
+            #     print(episode_steps)
             memory.push(ls_states, ls_actions, ls_rewards , ls_hiddens , sac)  # Append transition to memory
             k_episode += 1
             # print(ls_states,ls_actions,ls_rewards)
@@ -354,6 +363,7 @@ def log_test_and_save(env , sac , writer , args , avg_reward , avg_q_loss , avg_
                 if start == True:
                     start = False
                 if steps >= args['max_env_steps']:
+                    print('max steps reached!!!')
                     break
             avg_reward += episode_reward
             rets = []
