@@ -132,7 +132,7 @@ def run_exp(args):
             reward = 0
             # ls_rewards.append(0.)
             # ls_actions.append(0.)
-            evalll = False
+            # evalll = False
             while not done:
                 # print('staaart')
                 if args['env_name'][:8] == 'MiniGrid':
@@ -363,7 +363,7 @@ def log_test_and_save(env , sac , writer , args , avg_reward , avg_q_loss , avg_
                 if start == True:
                     start = False
                 if steps >= args['max_env_steps']:
-                    print('max steps reached!!!')
+                    # print('max steps reached!!!')
                     break
             avg_reward += episode_reward
             rets = []
